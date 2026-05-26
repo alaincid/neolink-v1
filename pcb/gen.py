@@ -126,20 +126,13 @@ def sym_2xN(name, n, pin_names):
 def sym_pwrflag():
     return f'''  (symbol "PWR_FLAG"
     (power)
-    (pin_names (offset 0) hide)
-    (pin_numbers hide)
     (property "Reference" "#PWR" (at 0 -3.81 0) {EFF_H})
-    (property "Value" "PWR_FLAG" (at 0 -2.54 0) {EFF})
+    (property "Value" "PWR_FLAG" (at 0 2.54 0) {EFF})
     (property "Footprint" "" (at 0 0 0) {EFF_H})
     (symbol "PWR_FLAG_0_0"
       (pin power_in line (at 0 0 0) (length 0)
-        (name "PWR" {EFF}) (number "1" {EFF}))
-    )
-    (symbol "PWR_FLAG_0_1"
-      (polyline (pts (xy 0 0) (xy 0 1.27))
-        (stroke (width 0) (type default)) (fill (type none)))
-      (polyline (pts (xy -1.016 1.27) (xy 0 2.54) (xy 1.016 1.27) (xy -1.016 1.27))
-        (stroke (width 0) (type default)) (fill (type filled)))
+        (name "PWR" {EFF})
+        (number "1" {EFF}))
     )
   )
 '''
@@ -240,8 +233,6 @@ def glabel(net, x, y, angle=0):
         f'(global_label "{net}" (shape bidirectional) (at {fv(x)} {fv(y)} {angle})\n'
         f'  {EFF}\n'
         f'  (uuid "{u()}")\n'
-        f'  (property "Intersheet References" "${{INTERSHEET_REFS}}" (at 0 0 0) {EFF_H})\n'
-        f'  (pin "~" (uuid "{u()}"))\n'
         f')\n'
     )
 
@@ -379,7 +370,10 @@ wire(c1_bot[0], c1_bot[1], c1_bot[0], c1_bot[1] - 5.08)
 # ── write schematic ───────────────────────────────────────────────────────────
 
 SCH = (
-    f'(kicad_sch (version 20230121) (generator "eeschema")\n'
+    f'(kicad_sch\n'
+    f'  (version 20231120)\n'
+    f'  (generator "eeschema")\n'
+    f'  (generator_version "8.0")\n'
     f'  (uuid "{u()}")\n'
     f'  (paper "A1")\n\n'
     + LIB_SYMS + '\n'
