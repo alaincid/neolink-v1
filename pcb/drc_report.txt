@@ -1,0 +1,194 @@
+** Drc report for neolink-v1.kicad_pcb **
+** Created on 2026-05-26T14:58:54 **
+** Report includes: Errors **
+
+** Found 44 DRC violations **
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(2.4600 mm, 27.0800 mm): Track [MOSI_SPI] on F.Cu, length 17.0000 mm
+    @(5.0000 mm, 24.5400 mm): Track [CLK_SPI] on F.Cu, length 2.5400 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(2.4600 mm, 10.0800 mm): Track [MOSI_SPI] on F.Cu, length 2.5400 mm
+    @(2.4600 mm, 5.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(51.2700 mm, 28.1600 mm): Track [MISO_SPI] on F.Cu, length 3.8100 mm
+    @(52.5400 mm, 25.6200 mm): Track [CS_MAX2] on F.Cu, length 1.2700 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(10.0800 mm, 23.0800 mm): Track [BAT] on F.Cu, length 43.9200 mm
+    @(51.2700 mm, 24.3500 mm): Track [MISO_SPI] on F.Cu, length 43.7300 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(51.2700 mm, 26.8900 mm): Track [CS_MAX2] on F.Cu, length 43.7300 mm
+    @(10.0800 mm, 23.0800 mm): Track [BAT] on F.Cu, length 43.9200 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(10.0800 mm, 23.0800 mm): Track [BAT] on F.Cu, length 43.9200 mm
+    @(50.0000 mm, 28.1600 mm): Track [MOSI_SPI] on F.Cu, length 41.1900 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(5.0000 mm, 27.0800 mm): Track [MOSI_SPI] on F.Cu, length 2.5400 mm
+    @(2.4600 mm, 29.6200 mm): Track [RTD2_P] on F.Cu, length 15.6200 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(6.2700 mm, 3.7300 mm): Track [RTD1_P] on F.Cu, length 63.7300 mm
+    @(60.0000 mm, 5.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 2.5400 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(2.4600 mm, 14.0000 mm): Track [RTD2_P] on F.Cu, length 67.5400 mm
+    @(2.4600 mm, 5.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(2.4600 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 2.5400 mm
+    @(2.4600 mm, 24.5400 mm): Track [CLK_SPI] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(10.0800 mm, 23.0800 mm): Track [BAT] on F.Cu, length 43.9200 mm
+    @(10.0800 mm, 24.5400 mm): Track [MISO_SPI] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(57.4600 mm, 29.5000 mm): Track [I2C_SCL] on F.Cu, length 17.0000 mm
+    @(57.4600 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(57.4600 mm, 12.5000 mm): Track [I2C_SCL] on F.Cu, length 2.5400 mm
+    @(57.4600 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(53.0700 mm, 20.5400 mm): Track [~{VCC_5V}] on F.Cu, length 1.2700 mm
+    @(47.4600 mm, 19.2700 mm): Track [TXD_SIM] on F.Cu, length 42.5400 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(57.4600 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+    @(53.0700 mm, 19.2700 mm): Track [~{VCC_5V}] on F.Cu, length 25.9300 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(47.4600 mm, 19.2700 mm): Track [TXD_SIM] on F.Cu, length 42.5400 mm
+    @(79.0000 mm, 19.2700 mm): Track [~{VCC_5V}] on F.Cu, length 5.2700 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(50.0000 mm, 23.0800 mm): Track [BAT] on F.Cu, length 39.9200 mm
+    @(10.0800 mm, 24.5400 mm): Track [MISO_SPI] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(50.0000 mm, 20.5400 mm): Track [~{VCC_3V3}] on F.Cu, length 2.5400 mm
+    @(47.4600 mm, 33.2400 mm): Track [TXD_SIM] on F.Cu, length 13.9700 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(2.4600 mm, 29.6200 mm): Track [RTD2_P] on F.Cu, length 15.6200 mm
+    @(5.0000 mm, 24.5400 mm): Track [CLK_SPI] on F.Cu, length 2.5400 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(50.0000 mm, 23.0800 mm): Track [BAT] on F.Cu, length 39.9200 mm
+    @(47.4600 mm, 33.2400 mm): Track [TXD_SIM] on F.Cu, length 13.9700 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(2.4600 mm, 14.0000 mm): Track [RTD2_P] on F.Cu, length 67.5400 mm
+    @(57.4600 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(47.4600 mm, 20.5400 mm): Track [~{VCC_3V3}] on F.Cu, length 4.3500 mm
+    @(47.4600 mm, 33.2400 mm): Track [TXD_SIM] on F.Cu, length 13.9700 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(10.0800 mm, 23.0800 mm): Track [BAT] on F.Cu, length 43.9200 mm
+    @(7.5400 mm, 44.6200 mm): Track [RTD2_N] on F.Cu, length 62.4600 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(47.4600 mm, 19.2700 mm): Track [TXD_SIM] on F.Cu, length 42.5400 mm
+    @(57.4600 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(70.0000 mm, 44.6200 mm): Track [RTD2_N] on F.Cu, length 28.1200 mm
+    @(53.0700 mm, 19.2700 mm): Track [~{VCC_5V}] on F.Cu, length 25.9300 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(55.0800 mm, 23.0800 mm): Track [CS_MAX1] on F.Cu, length 13.0000 mm
+    @(47.4600 mm, 16.1900 mm): Track [~{VCC_3V3}] on F.Cu, length 12.5400 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(70.0000 mm, 44.6200 mm): Track [RTD2_N] on F.Cu, length 28.1200 mm
+    @(62.7000 mm, 21.8100 mm): Track [RXD_SIM] on F.Cu, length 27.3000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(53.0700 mm, 19.2700 mm): Track [~{VCC_5V}] on F.Cu, length 25.9300 mm
+    @(60.0000 mm, 16.1900 mm): Track [~{VCC_3V3}] on F.Cu, length 5.8100 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(60.0000 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 2.5400 mm
+    @(57.4600 mm, 29.5000 mm): Track [I2C_SCL] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(57.4600 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+    @(57.4600 mm, 10.0000 mm): Track [I2C_SDA] on F.Cu, length 2.5400 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(7.5400 mm, 12.6200 mm): Track [RTD1_N] on F.Cu, length 10.1600 mm
+    @(10.0800 mm, 24.5400 mm): Track [MISO_SPI] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(2.4600 mm, 14.0000 mm): Track [RTD2_P] on F.Cu, length 67.5400 mm
+    @(2.4600 mm, 24.5400 mm): Track [CLK_SPI] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(17.7000 mm, 12.6200 mm): Track [RTD1_N] on F.Cu, length 6.3700 mm
+    @(55.0800 mm, 10.0800 mm): Track [CS_MAX1] on F.Cu, length 47.5400 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(57.4600 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+    @(17.7000 mm, 6.2500 mm): Track [RTD1_N] on F.Cu, length 52.3000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(2.4600 mm, 7.5400 mm): Track [CLK_SPI] on F.Cu, length 2.5400 mm
+    @(2.4600 mm, 5.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(51.2700 mm, 28.1600 mm): Track [MISO_SPI] on F.Cu, length 3.8100 mm
+    @(51.2700 mm, 25.6200 mm): Track [CS_MAX2] on F.Cu, length 1.2700 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(50.0000 mm, 29.5000 mm): Track [I2C_SCL] on F.Cu, length 10.0000 mm
+    @(54.9200 mm, 30.7000 mm): Track [I2C_SDA] on F.Cu, length 3.7000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(7.5400 mm, 24.5400 mm): Track [MISO_SPI] on F.Cu, length 2.5400 mm
+    @(10.0800 mm, 23.0800 mm): Track [BAT] on F.Cu, length 43.9200 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(57.4600 mm, 29.5000 mm): Track [I2C_SCL] on F.Cu, length 17.0000 mm
+    @(54.9200 mm, 27.0000 mm): Track [I2C_SDA] on F.Cu, length 5.0800 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(57.4600 mm, 29.5000 mm): Track [I2C_SCL] on F.Cu, length 17.0000 mm
+    @(60.0000 mm, 27.0000 mm): Track [I2C_SDA] on F.Cu, length 2.5400 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(57.4600 mm, 27.0000 mm): Track [I2C_SDA] on F.Cu, length 17.0000 mm
+    @(57.4600 mm, 22.0000 mm): Track [~{VCC_3V3}] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(55.0800 mm, 23.0800 mm): Track [CS_MAX1] on F.Cu, length 13.0000 mm
+    @(2.4600 mm, 14.0000 mm): Track [RTD2_P] on F.Cu, length 67.5400 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(55.0800 mm, 10.0800 mm): Track [CS_MAX1] on F.Cu, length 47.5400 mm
+    @(10.0800 mm, 24.5400 mm): Track [MISO_SPI] on F.Cu, length 17.0000 mm
+[tracks_crossing]: Tracks crossing
+    Local override; error
+    @(50.0000 mm, 25.6200 mm): Track [CLK_SPI] on F.Cu, length 41.1900 mm
+    @(10.0800 mm, 23.0800 mm): Track [BAT] on F.Cu, length 43.9200 mm
+
+** Found 0 unconnected pads **
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - Footprint component type doesn't match footprint pads
+
+** End of Report **
