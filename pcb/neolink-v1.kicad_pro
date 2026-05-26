@@ -1,0 +1,53 @@
+{
+  "board": {
+    "design_settings": {
+      "defaults": {
+        "board_outline_line_width": 0.05,
+        "copper_line_width": 0.25,
+        "copper_text_size_h": 1.5,
+        "copper_text_size_v": 1.5,
+        "copper_text_thickness": 0.3,
+        "other_line_width": 0.1,
+        "silk_line_width": 0.1,
+        "pads": {
+          "drill": 1.0,
+          "height": 1.8,
+          "width": 1.8
+        }
+      },
+      "rules": {
+        "min_clearance": 0.2,
+        "min_track_width": 0.25,
+        "min_via_diameter": 0.8,
+        "min_through_hole_diameter": 0.8
+      },
+      "track_widths": [
+        0.25,
+        0.5,
+        1.0
+      ],
+      "via_dimensions": [
+        {
+          "diameter": 1.6,
+          "drill": 0.8
+        }
+      ]
+    }
+  },
+  "meta": {
+    "filename": "neolink-v1.kicad_pro",
+    "version": 1
+  },
+  "schematic": {
+    "drawing": {
+      "default_wire_thickness": 6,
+      "default_pin_length": 100,
+      "default_text_size": 50,
+      "default_junction_size": 40,
+      "default_line_thickness": 6,
+      "default_bus_thickness": 12
+    }
+  },
+  "sheets": [],
+  "text_variables": {}
+}
