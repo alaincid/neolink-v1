@@ -78,9 +78,18 @@ void sensors_read(SensorData &out) {
         sensors_print_pt100_fault(fault);
         max31865.clearFault();
     } else {
-        out.pt100_ok    = true;
-        out.pt100_fault = 0;
-        out.temp_pt100  = max31865.temperature(PT100_NOMINAL_R, PT100_REF_R);
+        float t_pt = max31865.temperature(PT100_NOMINAL_R, PT100_REF_R);
+        // Rango físico válido del PT100: −200 °C a +850 °C
+        // Fuera de rango = sonda no conectada o lectura inválida
+        if (t_pt < -200.0f || t_pt > 900.0f) {
+            out.pt100_ok    = false;
+            out.temp_pt100  = -999.0f;
+            out.pt100_fault = 0xFF;   // indicador interno de rango
+        } else {
+            out.pt100_ok    = true;
+            out.pt100_fault = 0;
+            out.temp_pt100  = t_pt;
+        }
     }
 }
 
