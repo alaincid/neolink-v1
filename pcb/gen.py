@@ -130,7 +130,7 @@ def sym_pwrflag():
     (property "Value" "PWR_FLAG" (at 0 2.54 0) {EFF})
     (property "Footprint" "" (at 0 0 0) {EFF_H})
     (symbol "PWR_FLAG_0_0"
-      (pin power_in line (at 0 0 0) (length 0)
+      (pin power_out line (at 0 0 0) (length 0)
         (name "PWR" {EFF})
         (number "1" {EFF}))
     )
@@ -223,8 +223,14 @@ def mk_sym(lib_id, ref, value, fp, ax, ay, npins):
 
 # ── global label helpers ──────────────────────────────────────────────────────
 
-LABELS = []
-WIRES  = []
+LABELS     = []
+WIRES      = []
+NOCONNECTS = []
+
+def no_connect(x, y):
+    NOCONNECTS.append(
+        f'(no_connect (at {fv(x)} {fv(y)}) (uuid "{u()}"))\n'
+    )
 
 def glabel(net, x, y, angle=0):
     if not net or net in ("NC", "~"):
@@ -244,35 +250,50 @@ def wire(x1, y1, x2, y2):
     )
 
 def attach_1x(pin_names, ax, ay):
-    """Attach global labels to a 1xN connector placed at (ax, ay)."""
+    """Attach global labels to a 1xN connector placed at (ax, ay).
+
+    KiCad applies a Y-flip to symbol coordinates when placing them in the
+    schematic: absolute_y = sym_y - pin_y_relative.  Pins are defined at
+    y = -i*2.54, so absolute_y = sym_y - (-i*2.54) = sym_y + i*2.54.
+    """
     GAP = 5.08   # mm between label and pin
     for i, pname in enumerate(pin_names):
-        if not pname or pname == "NC":
+        py   = ay + i * 2.54      # y-flip: actual pin row goes DOWNWARD
+        px_p = ax - 5.08          # pin connection point (x unchanged)
+        if pname == "NC":
+            no_connect(px_p, py)
             continue
-        py   = ay - i * 2.54
-        px_p = ax - 5.08          # pin connection point
-        px_l = px_p - GAP         # label at
+        if not pname or pname == "~":
+            continue
+        px_l = px_p - GAP         # label placed to the left
         glabel(pname, px_l, py, 0)
         wire(px_l, py, px_p, py)
 
 def attach_2x(pin_names, ax, ay):
-    """Attach global labels to a 2xN connector placed at (ax, ay)."""
+    """Attach global labels to a 2xN connector placed at (ax, ay).
+
+    Same y-flip rule: actual row y = ay + row*2.54.
+    """
     GAP = 5.08
     n = len(pin_names) // 2
     for row in range(n):
-        y     = ay - row * 2.54
+        y     = ay + row * 2.54   # y-flip: rows go downward
         # left (odd) pin
         lo    = pin_names[2*row]
-        px_lp = ax - 5.08
-        px_ll = px_lp - GAP
-        glabel(lo, px_ll, y, 0)
-        wire(px_ll, y, px_lp, y)
+        if lo and lo not in ("NC", "~"):
+            px_lp = ax - 5.08
+            px_ll = px_lp - GAP
+            glabel(lo, px_ll, y, 0)
+            wire(px_ll, y, px_lp, y)
         # right (even) pin
         le    = pin_names[2*row+1]
-        px_rp = ax + 7.62
-        px_rl = px_rp + GAP
-        glabel(le, px_rl, y, 180)
-        wire(px_rp, y, px_rl, y)
+        if le and le not in ("NC", "~"):
+            px_rp = ax + 7.62
+            px_rl = px_rp + GAP
+            glabel(le, px_rl, y, 180)
+            wire(px_rp, y, px_rl, y)
+        elif le == "NC":
+            no_connect(ax + 7.62, y)
 
 # ── schematic layout ──────────────────────────────────────────────────────────
 # Coordinates in mm.  Origin (0,0) is top-left of schematic area.
@@ -359,13 +380,16 @@ SYMS += mk_pwrflag(4, "BAT",         30, 40)
 C1 = (140, 55)
 SYMS += mk_sym("C_TH", "C1", "1000uF/10V_C1",
     "Capacitor_THT:CP_Radial_D10.0mm_P5.00mm", *C1, 2)
-# Cap pin 1 (+): connection at (C1[0], C1[1] + 3.81)
-c1_top = (C1[0], C1[1] + 3.81)
-c1_bot = (C1[0], C1[1] - 3.81)
-glabel("~{VCC_5V}", c1_top[0], c1_top[1] + 5.08, 270)
-wire(c1_top[0], c1_top[1], c1_top[0], c1_top[1] + 5.08)
-glabel("GND",       c1_bot[0], c1_bot[1] - 5.08, 90)
-wire(c1_bot[0], c1_bot[1], c1_bot[0], c1_bot[1] - 5.08)
+# Cap pin 1 (+) defined at y_sym=+3.81 → after y-flip: abs_y = C1[1] - 3.81
+# Cap pin 2 (-) defined at y_sym=-3.81 → after y-flip: abs_y = C1[1] + 3.81
+c1_top = (C1[0], C1[1] - 3.81)   # + pin (above centre on screen)
+c1_bot = (C1[0], C1[1] + 3.81)   # - pin (below centre on screen)
+# VCC_5V label goes UP from + pin (smaller y = upward on screen)
+glabel("~{VCC_5V}", c1_top[0], c1_top[1] - 5.08, 90)
+wire(c1_top[0], c1_top[1], c1_top[0], c1_top[1] - 5.08)
+# GND label goes DOWN from - pin (larger y = downward on screen)
+glabel("GND",       c1_bot[0], c1_bot[1] + 5.08, 270)
+wire(c1_bot[0], c1_bot[1], c1_bot[0], c1_bot[1] + 5.08)
 
 # ── write schematic ───────────────────────────────────────────────────────────
 
@@ -380,6 +404,7 @@ SCH = (
     + SYMS + '\n'
     + ''.join(LABELS) + '\n'
     + ''.join(WIRES) + '\n'
+    + ''.join(NOCONNECTS) + '\n'
     + '  (sheet_instances\n'
     + '    (path "/" (page "1"))\n'
     + '  )\n'
