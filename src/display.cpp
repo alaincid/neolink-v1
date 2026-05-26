@@ -321,15 +321,17 @@ void display_update(const DisplayData &d) {
     if (s_hcnt < HIST_N) s_hcnt++;
 
     // ── Card 1: SHT35 ─────────────────────────────────────────────────
+    // Etiquetas abreviadas — visualmente más pequeñas con FreeSans9pt7b
     float       c1_val  = has_sht ? (s_alt_hum ? d.humidity : d.temp_sht35) : 0;
     const char *c1_unit = has_sht ? (s_alt_hum ? " %" : " C") : "";
-    const char *c1_lbl  = has_sht ? (s_alt_hum ? "S1  HUMEDAD" : "S1  TEMPERATURA") : "S1  SHT35";
+    const char *c1_lbl  = has_sht ? (s_alt_hum ? "S1  HUM" : "S1  TEMP") : "S1  SHT35";
     float      *c1_hist = s_alt_hum ? s_h_hum : s_h_temp;
 
     // ── Card 2: PT100 ─────────────────────────────────────────────────
+    // Label vacío cuando no hay PT100 → solo muestra N/A sin etiqueta
     float       c2_val  = has_pt ? d.temp_pt100 : 0;
     const char *c2_unit = " C";
-    const char *c2_lbl  = "S2  PT100";
+    const char *c2_lbl  = has_pt ? "S2  PT100" : "";
     float      *c2_hist = s_h_pt;
 
     // ── HEADER (solo si cambió) ────────────────────────────────────────
@@ -395,7 +397,12 @@ void display_update(const DisplayData &d) {
     // ── CARD 2 ────────────────────────────────────────────────────────
     {
         if (strcmp(c2_lbl, s_c2_lbl_prev) != 0) {
-            redraw_label(C2_Y, c2_lbl);
+            if (strlen(c2_lbl) > 0) {
+                redraw_label(C2_Y, c2_lbl);
+            } else {
+                // Sensor desconectado → borrar zona de etiqueta
+                s_gfx->fillRect(0, C2_Y + 4, LCD_WIDTH, LBL_H, C_BG);
+            }
             strlcpy(s_c2_lbl_prev, c2_lbl, sizeof(s_c2_lbl_prev));
         }
 

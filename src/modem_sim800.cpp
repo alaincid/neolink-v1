@@ -1,6 +1,8 @@
 #include "modem_sim800.h"
 #include "config.h"
 #include <ArduinoJson.h>
+#include <time.h>
+#include <sys/time.h>
 
 // ─────────────────────────────────────────────
 //  UART2 para SIM800L — TCP crudo (CIP stack)
@@ -347,3 +349,54 @@ void modem_read_status(ModemStatus &out) {
 // ─────────────────────────────────────────────
 
 ModemState modem_get_state() { return s_state; }
+
+// ─────────────────────────────────────────────
+//  modem_sync_time — AT+CCLK? → settimeofday
+//  El SIM800L reporta tiempo local (UTC-6 Telcel México).
+//  Requiere que configTime(-6*3600, 0, nullptr) ya se haya llamado
+//  para que mktime() interprete correctamente la hora local.
+// ─────────────────────────────────────────────
+bool modem_sync_time() {
+    char buf[80] = "";
+    if (!sim_cmd("AT+CCLK?", "+CCLK:", AT_SHORT, buf, sizeof(buf))) {
+        Serial.println("[SIM] AT+CCLK? sin respuesta");
+        return false;
+    }
+
+    // Busca la cadena entre comillas: "YY/MM/DD,HH:MM:SS±ZZ"
+    const char *p = strchr(buf, '"');
+    if (!p) { Serial.println("[SIM] CCLK: formato inesperado"); return false; }
+    p++;
+
+    int yy, mon, dd, hh, mm, ss;
+    if (sscanf(p, "%d/%d/%d,%d:%d:%d", &yy, &mon, &dd, &hh, &mm, &ss) < 6) {
+        Serial.printf("[SIM] CCLK parse failed: %s\n", p);
+        return false;
+    }
+    // Año 00 = red sin tiempo — rechazar
+    if (yy < 20) {
+        Serial.printf("[SIM] CCLK año inválido: %d\n", yy);
+        return false;
+    }
+
+    struct tm t = {};
+    t.tm_year  = yy + 100;   // desde 1900; 26 → 2026
+    t.tm_mon   = mon - 1;    // 0-based
+    t.tm_mday  = dd;
+    t.tm_hour  = hh;
+    t.tm_min   = mm;
+    t.tm_sec   = ss;
+    t.tm_isdst = 0;
+
+    // mktime usa TZ del sistema (UTC-6 por configTime) → devuelve timestamp UTC
+    time_t unix_t = mktime(&t);
+    if (unix_t < 1000000000L) {
+        Serial.printf("[SIM] CCLK timestamp inválido: %ld\n", (long)unix_t);
+        return false;
+    }
+
+    struct timeval tv = { .tv_sec = unix_t, .tv_usec = 0 };
+    settimeofday(&tv, nullptr);
+    Serial.printf("[SIM] Hora GSM sincronizada: %s", ctime(&unix_t));
+    return true;
+}

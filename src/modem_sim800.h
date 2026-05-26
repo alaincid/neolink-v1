@@ -45,3 +45,7 @@ void modem_read_status(ModemStatus &out);
 
 // Retorna el último estado conocido sin consultar al módem.
 ModemState modem_get_state();
+
+// Intenta leer la hora de red vía AT+CCLK y actualiza el reloj del sistema.
+// Requiere que el módem esté registrado en red. Retorna true si tuvo éxito.
+bool modem_sync_time();

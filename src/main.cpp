@@ -57,6 +57,10 @@ void setup() {
     Serial.printf("  Device ID : %s\n", DEVICE_ID);
     Serial.println("-----------------------------");
 
+    // Zona horaria: México CDMX UTC-6 (permanente desde 2023)
+    // Se establece antes de cualquier uso de mktime/localtime
+    configTime(-6 * 3600, 0, nullptr);
+
     // NVS (necesario antes del WiFi manager)
     prefs_init();
 
@@ -74,6 +78,8 @@ void setup() {
         Serial.println(modem_ready
             ? "[MAIN] GPRS activo"
             : "[MAIN] GPRS no disponible");
+        // Sincroniza hora desde red GSM (funciona sin WiFi)
+        if (modem_ready) modem_sync_time();
     } else {
         Serial.println("[MAIN] SIM800L no responde — solo lectura local");
     }
