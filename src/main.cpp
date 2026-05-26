@@ -2,23 +2,28 @@
 #include "config.h"
 #include "sensors.h"
 #include "modem_sim800.h"
+#include "display.h"
 
 // ─────────────────────────────────────────────
 //  NEOLINK V1 — main.cpp
-//  Fase 2: Sensores + SIM800L + HTTP POST
+//  Fase 3: Sensores + SIM800L + HTTP POST + Display
 // ─────────────────────────────────────────────
 
 // Cuántas lecturas acumular antes de enviar por GPRS
-// (evita abrir/cerrar HTTP en cada lectura)
 #define POST_EVERY_N_READINGS  5
 
-static SensorData  data;
-static ModemStatus modem_status;
-static uint32_t    last_read_ms  = 0;
-static uint8_t     reading_count = 0;
-static bool        modem_ready   = false;
+// Cada cuántas lecturas refrescar la pantalla
+#define DISPLAY_EVERY_N_READINGS 1
 
-// Batería fija en 100% hasta implementar ADC en Fase 4
+static SensorData   data;
+static ModemStatus  modem_status;
+static DisplayData  disp;
+static uint32_t     last_read_ms   = 0;
+static uint8_t      reading_count  = 0;
+static bool         modem_ready    = false;
+static uint32_t     last_post_ms   = 0;   // millis() del último POST OK
+
+// Batería fija en 100% hasta implementar AXP2101 en Fase 4
 static uint8_t battery_pct() { return 100; }
 
 // ─────────────────────────────────────────────
@@ -30,10 +35,13 @@ void setup() {
     delay(2000);
 
     Serial.println("=============================");
-    Serial.println("  NEOLINK V1 — Fase 2 boot  ");
+    Serial.println("  NEOLINK V1 — boot          ");
     Serial.println("=============================");
     Serial.printf("  Device ID : %s\n", DEVICE_ID);
     Serial.println("-----------------------------");
+
+    // Pantalla (primero para dar feedback visual inmediato)
+    display_init();
 
     // Sensores
     bool sensors_ok = sensors_init();
@@ -95,6 +103,21 @@ void loop() {
         Serial.printf("  GSM    : %s\n", modem_str);
         Serial.println("─────────────────────────────");
 
+        // ── Actualiza display ────────────────
+        if (reading_count % DISPLAY_EVERY_N_READINGS == 0) {
+            modem_read_status(modem_status);
+
+            disp.temp_sht35       = data.temp_sht35;
+            disp.humidity         = data.humidity;
+            disp.sht35_ok         = data.sht35_ok;
+            disp.rssi             = modem_status.rssi;
+            disp.battery_pct      = battery_pct();
+            disp.modem_connected  = modem_ready;
+            disp.last_post_ms     = last_post_ms;
+
+            display_update(disp);
+        }
+
         // ── Envía POST cada N lecturas ───────
         if (modem_ready && reading_count % POST_EVERY_N_READINGS == 0) {
 
@@ -111,12 +134,11 @@ void loop() {
 
             if (http_code == 200 || http_code == 201) {
                 Serial.printf("[MAIN] POST OK (HTTP %d)\n", http_code);
+                last_post_ms = millis();
             } else if (http_code == -2) {
-                // -2 = TCP falló — reconectar GPRS
                 Serial.println("[MAIN] TCP falló — reconectando GPRS...");
                 modem_ready = modem_connect();
             } else {
-                // -1 = HTTP ok pero respuesta no parseada — no reconectar
                 Serial.printf("[MAIN] POST status %d — reintentando proxima vez\n",
                               http_code);
             }

@@ -48,3 +48,27 @@
 #define BACKEND_HOST     "3.222.162.34"
 #define BACKEND_PORT     8080
 #define BACKEND_PATH     "/api/readings"
+
+// ── Display ST7796 — SPI ─────────────────────
+//  Waveshare ESP32-S3-Touch-LCD-3.5
+//  CS y RST se manejan vía TCA9554 (I/O expander)
+#define LCD_SCLK_PIN     5
+#define LCD_MOSI_PIN     1
+#define LCD_MISO_PIN     2
+#define LCD_DC_PIN       3
+#define LCD_BL_PIN       6    // Backlight PWM
+#define LCD_BL_CHANNEL   1    // LEDC canal (0 reservado por si acaso)
+#define LCD_BL_DUTY      200  // 0-255 (200 ≈ 78% brillo)
+#define LCD_WIDTH        320
+#define LCD_HEIGHT       480
+
+// ── I2C interna del board ─────────────────────
+//  Misma para TCA9554, FT6336 touch, PCF85063 RTC
+//  (SHT35 usa Wire en GPIO47/42 — esta usa Wire1)
+#define BOARD_I2C_SDA    8
+#define BOARD_I2C_SCL    7
+
+// ── TCA9554 I/O Expander ─────────────────────
+#define TCA9554_ADDR     0x20
+#define TCA_LCD_RST_PIN  1    // P1 → LCD RST
+#define TCA_LCD_CS_PIN   2    // P2 → LCD CS (active LOW)
