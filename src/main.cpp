@@ -68,8 +68,14 @@ void setup() {
     // Enciende los rails de voltaje necesarios para la pantalla
     power_init();
 
-    // Display
+    // Display — inicializar y mostrar pantalla inmediatamente
     display_init();
+    {
+        DisplayData boot_disp = {};   // todo en cero / false
+        boot_disp.battery_pct  = battery_pct();
+        boot_disp.current_time = time(nullptr);
+        display_update(boot_disp);   // UI visible antes de que cargue el modem
+    }
 
     // Sensores
     if (!sensors_init()) {
