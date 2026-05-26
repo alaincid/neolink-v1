@@ -45,9 +45,9 @@
 #define FTR_H   41
 
 // Offsets dentro de cada card (y relativo al cy del card)
-// FreeSans9pt7b: setCursor y = baseline; ascender ~13px, descender ~3px
-#define LBL_OFF  20    // baseline de la etiqueta (texto arranca ~7px desde cy)
-#define LBL_H    26    // área reservada para la etiqueta
+// default font 5×8 px: cursor y = TOP del glifo
+#define LBL_OFF  6     // top del texto desde el borde del card
+#define LBL_H    16    // área reservada para la etiqueta (8px texto + margen)
 #define NUM_DY   82    // baseline número grande
 #define UNT_DY   60    // baseline unidad
 #define SUB_DY   100   // baseline "sensor no conectado"
@@ -192,14 +192,14 @@ static void draw_sparkline(int16_t cx, int16_t cy, int16_t cw, int16_t ch,
     s_gfx->print(lb);
 }
 
-// ── Etiqueta del card (FreeSans9pt7b — proporcional, bonita) ──────────────
+// ── Etiqueta del card (mismo font que DEVICE_ID: default 5×8 tamaño 1) ───
 static void redraw_label(int16_t cy, const char *lbl) {
-    // FreeSans9pt7b: cursor y = baseline; glifo ocupa baseline-13 a baseline+3
-    s_gfx->fillRect(0, cy + 4, LCD_WIDTH, LBL_H, C_BG);
-    s_gfx->setFont(&FreeSans9pt7b);
+    // default 5×8: cursor y = TOP del glifo, 8px tall
+    s_gfx->fillRect(0, cy + 4, LCD_WIDTH, 12, C_BG);
+    s_gfx->setFont(nullptr);
     s_gfx->setTextSize(1);
     s_gfx->setTextColor(C_LABEL);
-    s_gfx->setCursor(14, cy + LBL_OFF);
+    s_gfx->setCursor(14, cy + 6);   // pequeño margen desde el borde del card
     s_gfx->print(lbl);
 }
 
