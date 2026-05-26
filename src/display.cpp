@@ -1,7 +1,10 @@
 // ─────────────────────────────────────────────
 //  NEOLINK V1 — display.cpp
-//  Layout: 2 sensor panels con sparkline charts
-//  Anti-flicker: estático dibujado 1 sola vez
+//  Layout:
+//    Header  (36px) : device | GSM bars | WiFi bars
+//    Card 1 (200px) : T1 temp | T1 hum  (split) + dual chart
+//    Card 2 (200px) : PT100 temp (N/A si no conectado) + chart
+//    Footer  (44px) : batería + uptime
 // ─────────────────────────────────────────────
 
 #include "display.h"
@@ -11,143 +14,137 @@
 #include <Arduino_GFX_Library.h>
 #include <TCA9554.h>
 
-// Incluir fonts DESPUÉS de Arduino_GFX (que define GFXglyph/GFXfont)
 #include "FreeSansBold24pt7b.h"
 #include "FreeSans9pt7b.h"
 
-// ── Colores RGB565 ────────────────────────────
-#define C_BG        0x0000   // negro puro
-#define C_PANEL     0x0821   // #08102A  azul muy oscuro
-#define C_DIVIDER   0x2945   // #294060  azul gris
-#define C_WHITE     0xFFFF
-#define C_GRAY      0x7BEF   // #787878  gris medio
-#define C_LGRAY     0x9CF3   // #989898  gris claro (labels)
-#define C_CYAN      0x07FF   // #00FFFF  sparkline T1
-#define C_TEAL      0x07EF   // #00FFE8  sparkline T2
-#define C_OK        0x07E0
-#define C_WARN      0xFCC0
-#define C_ERR       0xF800
-#define C_ACCENT    0x435F   // #408BFF  azul acento
+// ── Colores ────────────────────────────────────────────────────────────────
+#define C_BG      0x0000   // negro
+#define C_PANEL   0x0821   // azul muy oscuro
+#define C_DIV     0x2104   // divisor gris oscuro
+#define C_GRID    0x18A3   // guías del chart
+#define C_WHITE   0xFFFF
+#define C_GRAY    0x7BEF
+#define C_LGRAY   0xAD55
+#define C_CYAN    0x07FF   // T1 temperatura
+#define C_TEAL    0x07EF   // T1 humedad
+#define C_ORANGE  0xFCA0   // PT100
+#define C_OK      0x07E0
+#define C_WARN    0xFCC0
+#define C_ERR     0xF800
+#define C_BLUE    0x435F   // acento WiFi
 
-// ── Layout (portrait 320×480) ─────────────────
-#define HDR_Y       0
-#define HDR_H       36
-#define DIV1_Y      36
-#define T1_Y        38
-#define T1_H        200      // y=38..237
-#define DIV2_Y      238
-#define T2_Y        240
-#define T2_H        200      // y=240..439
-#define DIV3_Y      440
-#define FTR_Y       441
-#define FTR_H       39       // y=441..479
+// ── Layout ─────────────────────────────────────────────────────────────────
+//  Portrait 320×480
+#define HDR_Y      0
+#define HDR_H      36
+#define C1_Y       36
+#define C1_H       200     //  36 → 235
+#define C1_MID_X   160     // división izquierda/derecha
+#define C1_VAL_H   100     // zona del número grande
+#define C1_CHART_Y (C1_Y + C1_VAL_H + 18)   // 154
+#define C1_CHART_H 62
+#define DIV_Y      236
+#define C2_Y       237
+#define C2_H       200     // 237 → 436
+#define C2_CHART_Y (C2_Y + 100 + 18)         // 355
+#define C2_CHART_H 70
+#define FTR_Y      437
+#define FTR_H      43      // 437 → 479
 
-// Dentro de cada sección (offset relativo al inicio de sección)
-#define SEC_LABEL_DY    6    // "T1 INTERNA" label
-#define SEC_NUM_DY      32   // número grande
-#define SEC_CHART_DY    105  // sparkline chart
-#define SEC_CHART_H     80
+// ── Historia sparklines ────────────────────────────────────────────────────
+#define HIST_N     60
 
-// Área precisa del número grande (para limpiar antes de redibujar)
-#define NUM_CLEAR_X     0
-#define NUM_CLEAR_W     320
-#define NUM_CLEAR_H     68   // aprox altura número con font 24pt×2
+static float   s_t1[HIST_N];   // temperatura SHT35
+static float   s_t2[HIST_N];   // humedad SHT35
+static float   s_t3[HIST_N];   // temperatura PT100
+static uint8_t s_hi    = 0;
+static uint8_t s_hcnt  = 0;
 
-// ── Histórico para sparklines ─────────────────
-#define CHART_POINTS    60
-
-static float   s_t1_hist[CHART_POINTS];   // temperatura
-static float   s_t2_hist[CHART_POINTS];   // humedad
-static uint8_t s_hist_idx   = 0;
-static uint8_t s_hist_count = 0;
-
-// ── Estado del módulo ─────────────────────────
+// ── Hardware ───────────────────────────────────────────────────────────────
 static TCA9554          s_tca(TCA9554_ADDR, &Wire1);
 static Arduino_DataBus *s_bus  = nullptr;
 static Arduino_GFX     *s_gfx  = nullptr;
-static bool             s_ok          = false;
-static bool             s_static_done = false;
+static bool             s_ok           = false;
+static bool             s_static_done  = false;
 
-// ═════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 //  HELPERS
-// ═════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
-// Centra texto horizontalmente en la pantalla
-static void print_hcenter(const char *str, int16_t y, uint16_t color) {
-    int16_t x1, y1;
-    uint16_t tw, th;
-    s_gfx->getTextBounds(str, 0, y, &x1, &y1, &tw, &th);
+// Centra un string en el rango horizontal [x0, x1)
+static void print_centered_range(const char *str, int16_t x0, int16_t x1,
+                                  int16_t y, uint16_t color) {
+    int16_t bx, by; uint16_t tw, th;
+    s_gfx->getTextBounds(str, 0, y, &bx, &by, &tw, &th);
+    int16_t cx = x0 + ((x1 - x0) - (int16_t)tw) / 2;
     s_gfx->setTextColor(color);
-    s_gfx->setCursor((int16_t)(LCD_WIDTH - tw) / 2, y);
+    s_gfx->setCursor(cx, y);
     s_gfx->print(str);
 }
 
-// Dibuja sparkline chart en la región dada
-static void draw_chart(int16_t cx, int16_t cy, int16_t cw, int16_t ch,
-                       float *data, uint8_t count,
-                       uint16_t line_color) {
-    // Fondo
-    s_gfx->fillRect(cx, cy, cw, ch, C_BG);
-    // Líneas guía horizontales (3)
-    uint16_t gc = 0x1082;   // gris muy oscuro
-    for (uint8_t i = 1; i <= 3; i++)
-        s_gfx->drawFastHLine(cx, cy + ch * i / 4, cw, gc);
+// Dibuja sparkline de UNA serie; normalización independiente
+static void draw_series(int16_t cx, int16_t cy, int16_t cw, int16_t ch,
+                         float *data, uint8_t cnt, uint16_t lc) {
+    if (cnt < 2) return;
 
-    if (count < 2) return;
-
-    // Calcula rango de datos (auto-scale)
     float vmin = data[0], vmax = data[0];
-    for (uint8_t i = 1; i < count; i++) {
+    for (uint8_t i = 1; i < cnt; i++) {
         if (data[i] < vmin) vmin = data[i];
         if (data[i] > vmax) vmax = data[i];
     }
     float range = vmax - vmin;
-    if (range < 0.5f) {
-        vmin -= 0.5f;
-        vmax += 0.5f;
-        range = 1.0f;
-    }
+    if (range < 0.1f) { vmin -= 0.5f; vmax += 0.5f; range = 1.0f; }
 
-    // Dibuja polilínea (un punto por pixel si hay suficientes datos)
-    uint8_t pts = min((uint8_t)cw, count);
-    float step = (float)cw / pts;
-
+    uint8_t pts = (cnt < (uint8_t)cw) ? cnt : (uint8_t)cw;
     int16_t prev_px = -1, prev_py = -1;
     for (uint8_t i = 0; i < pts; i++) {
-        // Lee en orden cronológico desde el más antiguo
-        uint8_t idx = (s_hist_idx + CHART_POINTS - pts + i) % CHART_POINTS;
-        float val = data[idx];
-
-        float norm = (val - vmin) / range;
-        norm = constrain(norm, 0.0f, 1.0f);
-
-        int16_t px = cx + (int16_t)(i * step);
-        int16_t py = cy + ch - 1 - (int16_t)(norm * (ch - 2));
-
+        uint8_t idx = (s_hi + HIST_N - pts + i) % HIST_N;
+        float v = data[idx];
+        float n = constrain((v - vmin) / range, 0.0f, 1.0f);
+        int16_t px = cx + (int16_t)((float)i / (pts - 1) * (cw - 1));
+        int16_t py = cy + ch - 1 - (int16_t)(n * (ch - 2));
         if (prev_px >= 0) {
-            s_gfx->drawLine(prev_px, prev_py, px, py, line_color);
-            // Engorda la línea 1px abajo para mejor visibilidad
-            s_gfx->drawLine(prev_px, prev_py + 1, px, py + 1, line_color);
+            s_gfx->drawLine(prev_px, prev_py,     px, py,     lc);
+            s_gfx->drawLine(prev_px, prev_py + 1, px, py + 1, lc);
         }
-        prev_px = px;
-        prev_py = py;
+        prev_px = px; prev_py = py;
     }
 }
 
-// Icono de batería
-static void draw_battery_icon(int16_t x, int16_t y, uint8_t pct) {
-    uint16_t c = (pct > 40) ? C_OK : (pct > 20) ? C_WARN : C_ERR;
-    s_gfx->fillRect(x, y, 25, 10, C_BG);
-    s_gfx->drawRect(x, y, 22, 10, C_GRAY);
-    s_gfx->fillRect(x + 22, y + 2, 2, 6, C_GRAY);
-    int16_t fw = (int16_t)(18 * pct / 100);
-    if (fw > 0) s_gfx->fillRect(x + 2, y + 2, fw, 6, c);
+// Chart con una o dos series
+static void draw_chart(int16_t cx, int16_t cy, int16_t cw, int16_t ch,
+                        float *d1, float *d2, uint8_t cnt,
+                        uint16_t c1, uint16_t c2) {
+    s_gfx->fillRect(cx, cy, cw, ch, C_BG);
+    // Guías horizontales
+    for (uint8_t i = 1; i <= 3; i++)
+        s_gfx->drawFastHLine(cx, cy + ch * i / 4, cw, C_GRID);
+
+    draw_series(cx, cy, cw, ch, d1, cnt, c1);
+    if (d2) draw_series(cx, cy, cw, ch, d2, cnt, c2);
 }
 
-// ═════════════════════════════════════════════
-//  INIT
-// ═════════════════════════════════════════════
+// Barras de señal (4 barras verticales, ancho=4 alto variable)
+static void draw_signal_bars(int16_t x, int16_t y, int8_t rssi,
+                              bool connected, uint16_t color) {
+    uint8_t bars = 0;
+    if (connected) {
+        if      (rssi >= -65) bars = 4;
+        else if (rssi >= -75) bars = 3;
+        else if (rssi >= -85) bars = 2;
+        else                  bars = 1;
+    }
+    for (uint8_t i = 0; i < 4; i++) {
+        int16_t bh = 4 + i * 5;
+        int16_t bx = x + i * 7;
+        int16_t by = y + (20 - bh);
+        s_gfx->fillRect(bx, by, 5, bh, (i < bars) ? color : C_DIV);
+    }
+}
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════════════════
 bool display_init() {
     Serial.println("[DISP] Init...");
 
@@ -161,35 +158,29 @@ bool display_init() {
 
     s_tca.pinMode1(TCA_LCD_RST_PIN, OUTPUT);
     s_tca.pinMode1(TCA_LCD_CS_PIN,  OUTPUT);
-    s_tca.write1(TCA_LCD_CS_PIN,  HIGH);  // deassert CS
-
-    // Reset hardware
+    s_tca.write1(TCA_LCD_CS_PIN,  HIGH);
     s_tca.write1(TCA_LCD_RST_PIN, LOW);
     delay(20);
     s_tca.write1(TCA_LCD_RST_PIN, HIGH);
     delay(150);
+    s_tca.write1(TCA_LCD_CS_PIN, LOW);  // CS activo permanente
 
-    // CS permanentemente activo (único dispositivo en este bus SPI)
-    s_tca.write1(TCA_LCD_CS_PIN, LOW);
-
-    // Backlight PWM
     ledcSetup(LCD_BL_CHANNEL, 5000, 8);
     ledcAttachPin(LCD_BL_PIN, LCD_BL_CHANNEL);
     ledcWrite(LCD_BL_CHANNEL, LCD_BL_DUTY);
 
-    // GFX: hardware SPI, CS manejado externamente
     s_bus = new Arduino_ESP32SPI(
         LCD_DC_PIN, GFX_NOT_DEFINED, LCD_SCLK_PIN, LCD_MOSI_PIN, LCD_MISO_PIN);
-    s_gfx = new Arduino_ST7796(s_bus, GFX_NOT_DEFINED, 0 /*portrait*/, true /*IPS*/);
+    s_gfx = new Arduino_ST7796(s_bus, GFX_NOT_DEFINED, 0, true);
 
     if (!s_gfx->begin(20000000UL)) {
         Serial.println("[DISP] ERROR: GFX begin failed");
         return false;
     }
 
-    // Historial vacío
-    memset(s_t1_hist, 0, sizeof(s_t1_hist));
-    memset(s_t2_hist, 0, sizeof(s_t2_hist));
+    memset(s_t1, 0, sizeof(s_t1));
+    memset(s_t2, 0, sizeof(s_t2));
+    memset(s_t3, 0, sizeof(s_t3));
 
     s_ok = true;
     s_gfx->fillScreen(C_BG);
@@ -197,148 +188,193 @@ bool display_init() {
     return true;
 }
 
-// ═════════════════════════════════════════════
-//  ESTÁTICO — dibujado 1 sola vez
-// ═════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+//  ESTÁTICO — solo se dibuja una vez
+// ═══════════════════════════════════════════════════════════════════════════
 static void draw_static() {
     s_gfx->fillScreen(C_BG);
 
-    // ── Header ──────────────────────────────────
+    // Header fondo
     s_gfx->fillRect(0, HDR_Y, LCD_WIDTH, HDR_H, C_PANEL);
-    s_gfx->setFont(&FreeSans9pt7b);
-    s_gfx->setTextSize(1);
-    s_gfx->setTextColor(C_WHITE);
-    s_gfx->setCursor(10, HDR_Y + 22);
-    s_gfx->print(DEVICE_ID);
 
-    // ── Líneas divisorias ────────────────────────
-    s_gfx->drawFastHLine(0, DIV1_Y, LCD_WIDTH, C_DIVIDER);
-    s_gfx->drawFastHLine(0, DIV2_Y, LCD_WIDTH, C_DIVIDER);
-    s_gfx->drawFastHLine(0, DIV3_Y, LCD_WIDTH, C_DIVIDER);
+    // Divisores
+    s_gfx->drawFastHLine(0, HDR_H,   LCD_WIDTH, C_DIV);
+    s_gfx->drawFastHLine(0, DIV_Y,   LCD_WIDTH, C_DIV);
+    s_gfx->drawFastHLine(0, FTR_Y,   LCD_WIDTH, C_DIV);
+    // Divisor vertical en Card 1
+    s_gfx->drawFastVLine(C1_MID_X, C1_Y, C1_VAL_H + 16, C_DIV);
 
-    // ── Labels de secciones ──────────────────────
+    // Labels de sección (FreeSans9pt)
     s_gfx->setFont(&FreeSans9pt7b);
     s_gfx->setTextSize(1);
 
     s_gfx->setTextColor(C_LGRAY);
-    s_gfx->setCursor(12, T1_Y + SEC_LABEL_DY + 14);
+    s_gfx->setCursor(10, C1_Y + 18);
     s_gfx->print("T1  TEMPERATURA");
 
-    s_gfx->setCursor(12, T2_Y + SEC_LABEL_DY + 14);
-    s_gfx->print("T2  HUMEDAD RELATIVA");
+    s_gfx->setCursor(C1_MID_X + 10, C1_Y + 18);
+    s_gfx->print("T1  HUMEDAD");
 
-    s_gfx->setFont(nullptr);  // vuelve al font por defecto
+    s_gfx->setCursor(10, C2_Y + 18);
+    s_gfx->print("T2  PT100");
 
+    // Footer fondo
+    s_gfx->fillRect(0, FTR_Y, LCD_WIDTH, FTR_H, C_PANEL);
+
+    s_gfx->setFont(nullptr);
     s_static_done = true;
 }
 
-// ═════════════════════════════════════════════
-//  UPDATE — solo partes dinámicas
-// ═════════════════════════════════════════════
-
+// ═══════════════════════════════════════════════════════════════════════════
+//  UPDATE
+// ═══════════════════════════════════════════════════════════════════════════
 void display_update(const DisplayData &d) {
     if (!s_ok) return;
-
-    // Dibuja estático solo la primera vez
     if (!s_static_done) draw_static();
 
     // Acumula historial
-    s_t1_hist[s_hist_idx] = d.sht35_ok ? d.temp_sht35 : (s_hist_count > 0 ? s_t1_hist[(s_hist_idx + CHART_POINTS - 1) % CHART_POINTS] : 0.0f);
-    s_t2_hist[s_hist_idx] = d.sht35_ok ? d.humidity   : (s_hist_count > 0 ? s_t2_hist[(s_hist_idx + CHART_POINTS - 1) % CHART_POINTS] : 0.0f);
-    s_hist_idx = (s_hist_idx + 1) % CHART_POINTS;
-    if (s_hist_count < CHART_POINTS) s_hist_count++;
+    s_t1[s_hi] = d.sht35_ok ? d.temp_sht35 : (s_hcnt > 0 ? s_t1[(s_hi + HIST_N - 1) % HIST_N] : 20.0f);
+    s_t2[s_hi] = d.sht35_ok ? d.humidity   : (s_hcnt > 0 ? s_t2[(s_hi + HIST_N - 1) % HIST_N] : 50.0f);
+    s_t3[s_hi] = d.pt100_ok  ? d.temp_pt100 : (s_hcnt > 0 ? s_t3[(s_hi + HIST_N - 1) % HIST_N] : 0.0f);
+    s_hi = (s_hi + 1) % HIST_N;
+    if (s_hcnt < HIST_N) s_hcnt++;
 
     char buf[32];
 
-    // ── HEADER: señal GSM + batería ─────────────
-    // Limpiar zona dinámica del header (derecha)
-    s_gfx->fillRect(150, HDR_Y, LCD_WIDTH - 150, HDR_H, C_PANEL);
+    // ── HEADER ──────────────────────────────────────────────────────────
+    s_gfx->fillRect(0, HDR_Y, LCD_WIDTH, HDR_H, C_PANEL);
 
-    // Barras de señal (4 barras verticales)
-    {
-        uint8_t bars = 0;
-        if      (d.rssi >= -65) bars = 4;
-        else if (d.rssi >= -75) bars = 3;
-        else if (d.rssi >= -85) bars = 2;
-        else if (d.rssi >  -99) bars = 1;
-
-        uint16_t sc = (bars >= 3) ? C_OK : (bars >= 2) ? C_WARN : C_ERR;
-        for (uint8_t i = 0; i < 4; i++) {
-            int16_t bh = 5 + i * 5;
-            int16_t bx = 200 + i * 8;
-            int16_t by = HDR_Y + HDR_H - bh - 4;
-            s_gfx->fillRect(bx, by, 5, bh, (i < bars) ? sc : C_DIVIDER);
-        }
-    }
-
-    // Batería
-    draw_battery_icon(240, HDR_Y + 13, d.battery_pct);
+    // Device name (left)
     s_gfx->setFont(&FreeSans9pt7b);
     s_gfx->setTextSize(1);
-    s_gfx->setTextColor(C_LGRAY);
-    s_gfx->setCursor(268, HDR_Y + 23);
+    s_gfx->setTextColor(C_WHITE);
+    s_gfx->setCursor(8, HDR_Y + 22);
+    s_gfx->print(DEVICE_ID);
+
+    // GSM signal bars (right, near center)
+    draw_signal_bars(196, HDR_Y + 8, d.gsm_rssi, d.gsm_connected, C_OK);
+
+    // WiFi signal bars
+    if (d.wifi_ap_mode) {
+        // En modo AP: ícono wifi diferente (azul, parpadeante no, solo color)
+        draw_signal_bars(228, HDR_Y + 8, -50, true, C_BLUE);
+    } else {
+        draw_signal_bars(228, HDR_Y + 8, d.wifi_rssi, d.wifi_connected, C_BLUE);
+    }
+
+    // Batería (esquina derecha)
+    s_gfx->setFont(&FreeSans9pt7b);
+    s_gfx->setTextSize(1);
+    s_gfx->setTextColor(d.battery_pct > 20 ? C_OK : C_WARN);
+    s_gfx->setCursor(264, HDR_Y + 22);
     snprintf(buf, sizeof(buf), "%d%%", d.battery_pct);
     s_gfx->print(buf);
 
-    // ── T1: TEMPERATURA ─────────────────────────
-    // Limpiar zona del número
-    s_gfx->fillRect(NUM_CLEAR_X, T1_Y + SEC_NUM_DY, NUM_CLEAR_W, NUM_CLEAR_H, C_BG);
-
+    // ── CARD 1: SHT35 ───────────────────────────────────────────────────
+    // Zona izquierda: temperatura
+    s_gfx->fillRect(0, C1_Y + 22, C1_MID_X, C1_VAL_H - 8, C_BG);
     s_gfx->setFont(&FreeSansBold24pt7b);
     s_gfx->setTextSize(1);
     if (d.sht35_ok && !isnan(d.temp_sht35)) {
-        snprintf(buf, sizeof(buf), "%.1f C", d.temp_sht35);
-        print_hcenter(buf, T1_Y + SEC_NUM_DY + 46, C_WHITE);
+        snprintf(buf, sizeof(buf), "%.1f", d.temp_sht35);
+        print_centered_range(buf, 4, C1_MID_X - 4,
+                             C1_Y + 22 + 44, C_WHITE);
     } else {
-        print_hcenter("-- C", T1_Y + SEC_NUM_DY + 46, C_GRAY);
+        print_centered_range("N/A", 4, C1_MID_X - 4,
+                             C1_Y + 22 + 44, C_GRAY);
     }
+    // Unidad °C (pequeño, debajo del número)
+    s_gfx->setFont(&FreeSans9pt7b);
+    s_gfx->setTextSize(1);
+    s_gfx->setTextColor(C_LGRAY);
+    s_gfx->setCursor(C1_MID_X / 2 - 10, C1_Y + 22 + 44 + 18);
+    s_gfx->print("grados C");
 
-    // Sparkline T1
-    draw_chart(
-        10, T1_Y + SEC_CHART_DY,
-        LCD_WIDTH - 20, SEC_CHART_H,
-        s_t1_hist, s_hist_count, C_CYAN);
-
-    // ── T2: HUMEDAD ──────────────────────────────
-    s_gfx->fillRect(NUM_CLEAR_X, T2_Y + SEC_NUM_DY, NUM_CLEAR_W, NUM_CLEAR_H, C_BG);
-
+    // Zona derecha: humedad
+    s_gfx->fillRect(C1_MID_X + 1, C1_Y + 22, C1_MID_X - 1, C1_VAL_H - 8, C_BG);
     s_gfx->setFont(&FreeSansBold24pt7b);
     s_gfx->setTextSize(1);
     if (d.sht35_ok && !isnan(d.humidity)) {
         snprintf(buf, sizeof(buf), "%.1f%%", d.humidity);
-        print_hcenter(buf, T2_Y + SEC_NUM_DY + 46, C_WHITE);
+        print_centered_range(buf, C1_MID_X + 4, LCD_WIDTH - 4,
+                             C1_Y + 22 + 44, C_WHITE);
     } else {
-        print_hcenter("--.-%% ", T2_Y + SEC_NUM_DY + 46, C_GRAY);
+        print_centered_range("N/A", C1_MID_X + 4, LCD_WIDTH - 4,
+                             C1_Y + 22 + 44, C_GRAY);
+    }
+    s_gfx->setFont(&FreeSans9pt7b);
+    s_gfx->setTextColor(C_LGRAY);
+    s_gfx->setCursor(C1_MID_X + C1_MID_X / 2 - 10, C1_Y + 22 + 44 + 18);
+    s_gfx->print("% HR");
+
+    // Chart Card 1 (dos líneas: cyan=temp, teal=hum)
+    draw_chart(10, C1_CHART_Y, LCD_WIDTH - 20, C1_CHART_H,
+               s_t1, s_t2, s_hcnt, C_CYAN, C_TEAL);
+
+    // ── CARD 2: PT100 ───────────────────────────────────────────────────
+    s_gfx->fillRect(0, C2_Y + 22, LCD_WIDTH, 95, C_BG);
+    s_gfx->setFont(&FreeSansBold24pt7b);
+    s_gfx->setTextSize(1);
+
+    if (d.pt100_ok && !isnan(d.temp_pt100)) {
+        snprintf(buf, sizeof(buf), "%.1f C", d.temp_pt100);
+        print_centered_range(buf, 4, LCD_WIDTH - 4,
+                             C2_Y + 22 + 50, C_WHITE);
+    } else {
+        // No conectado — mostrar N/A en gris
+        print_centered_range("N/A", 4, LCD_WIDTH - 4,
+                             C2_Y + 22 + 50, C_GRAY);
+        // Mensaje pequeño
+        s_gfx->setFont(&FreeSans9pt7b);
+        s_gfx->setTextSize(1);
+        s_gfx->setTextColor(C_DIV);
+        s_gfx->setCursor(80, C2_Y + 22 + 50 + 22);
+        s_gfx->print("sonda no conectada");
     }
 
-    // Sparkline T2
-    draw_chart(
-        10, T2_Y + SEC_CHART_DY,
-        LCD_WIDTH - 20, SEC_CHART_H,
-        s_t2_hist, s_hist_count, C_TEAL);
+    // Chart Card 2 (solo PT100 si disponible)
+    if (d.pt100_ok) {
+        draw_chart(10, C2_CHART_Y, LCD_WIDTH - 20, C2_CHART_H,
+                   s_t3, nullptr, s_hcnt, C_ORANGE, 0);
+    } else {
+        // Grid vacío
+        s_gfx->fillRect(10, C2_CHART_Y, LCD_WIDTH - 20, C2_CHART_H, C_BG);
+        for (uint8_t i = 1; i <= 3; i++)
+            s_gfx->drawFastHLine(10, C2_CHART_Y + C2_CHART_H * i / 4,
+                                  LCD_WIDTH - 20, C_GRID);
+    }
 
-    // ── FOOTER ───────────────────────────────────
+    // ── FOOTER ──────────────────────────────────────────────────────────
     s_gfx->fillRect(0, FTR_Y, LCD_WIDTH, FTR_H, C_PANEL);
-
     s_gfx->setFont(&FreeSans9pt7b);
     s_gfx->setTextSize(1);
 
-    // Estado conexión
-    s_gfx->setCursor(10, FTR_Y + 22);
-    if (d.modem_connected) {
-        s_gfx->setTextColor(C_OK);
-        s_gfx->print("GPRS");
-        if (d.rssi != 0) {
-            s_gfx->setTextColor(C_LGRAY);
-            snprintf(buf, sizeof(buf), "  %ddBm", d.rssi);
-            s_gfx->print(buf);
+    // Estado red
+    s_gfx->setCursor(8, FTR_Y + 26);
+    if (d.wifi_ap_mode) {
+        s_gfx->setTextColor(C_BLUE);
+        s_gfx->print("AP: NEOLINK-SETUP");
+    } else if (d.wifi_connected) {
+        s_gfx->setTextColor(C_BLUE);
+        s_gfx->print("WiFi");
+        if (d.gsm_connected) {
+            s_gfx->setTextColor(C_DIV);
+            s_gfx->print(" + ");
+            s_gfx->setTextColor(C_OK);
+            s_gfx->print("GSM");
         }
+    } else if (d.gsm_connected) {
+        s_gfx->setTextColor(C_OK);
+        s_gfx->print("GSM");
+        snprintf(buf, sizeof(buf), " %ddBm", d.gsm_rssi);
+        s_gfx->setTextColor(C_LGRAY);
+        s_gfx->print(buf);
     } else {
         s_gfx->setTextColor(C_ERR);
         s_gfx->print("SIN RED");
     }
 
-    // Uptime / sync
+    // Tiempo / sync (derecha)
     {
         uint32_t up = millis() / 1000;
         if (d.last_post_ms > 0) {
@@ -346,7 +382,10 @@ void display_update(const DisplayData &d) {
             if (ago < 60)
                 snprintf(buf, sizeof(buf), "sync %lus", (unsigned long)ago);
             else
-                snprintf(buf, sizeof(buf), "sync %lum", (unsigned long)(ago / 60));
+                snprintf(buf, sizeof(buf), "%02lu:%02lu:%02lu",
+                         (unsigned long)(up / 3600),
+                         (unsigned long)((up % 3600) / 60),
+                         (unsigned long)(up % 60));
         } else {
             snprintf(buf, sizeof(buf), "%02lu:%02lu:%02lu",
                      (unsigned long)(up / 3600),
@@ -354,10 +393,9 @@ void display_update(const DisplayData &d) {
                      (unsigned long)(up % 60));
         }
         s_gfx->setTextColor(C_LGRAY);
-        s_gfx->setCursor(170, FTR_Y + 22);
+        s_gfx->setCursor(190, FTR_Y + 26);
         s_gfx->print(buf);
     }
 
-    // Restaura font por defecto al terminar
     s_gfx->setFont(nullptr);
 }

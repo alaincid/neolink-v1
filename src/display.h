@@ -4,19 +4,30 @@
 // ─────────────────────────────────────────────
 //  NEOLINK V1 — display.h
 //  Driver para Waveshare ESP32-S3-Touch-LCD-3.5
-//  ST7796 SPI + TCA9554 I/O expander
 // ─────────────────────────────────────────────
 
 struct DisplayData {
-    float    temp_sht35;   // temperatura SHT35 (°C)
-    float    humidity;     // humedad SHT35 (%RH)
-    bool     sht35_ok;     // sensor válido
+    // SHT35 (Card 1 — izquierda/derecha)
+    float    temp_sht35;
+    float    humidity;
+    bool     sht35_ok;
 
-    int8_t   rssi;         // RSSI GSM (dBm, 0 = desconocido)
-    uint8_t  battery_pct;  // batería 0-100 %
-    bool     modem_connected;  // GPRS activo
+    // PT100 / MAX31865 (Card 2 — dinámico)
+    float    temp_pt100;
+    bool     pt100_ok;
 
-    uint32_t last_post_ms; // millis() del último POST exitoso (0 = nunca)
+    // GSM
+    int8_t   gsm_rssi;        // dBm, 0 = desconocido
+    bool     gsm_connected;
+
+    // WiFi
+    int8_t   wifi_rssi;       // dBm, 0 = desconectado
+    bool     wifi_connected;
+    bool     wifi_ap_mode;    // true = modo AP de configuración
+
+    // General
+    uint8_t  battery_pct;
+    uint32_t last_post_ms;    // millis() del último POST OK
 };
 
 bool display_init();
