@@ -343,15 +343,15 @@ void display_update(const DisplayData &d) {
     if (hdr_changed) {
         s_gfx->fillRect(0, HDR_Y, LCD_WIDTH, HDR_H, C_BG);
 
-        // Nombre dispositivo: mayúsculas, color gris (igual que labels S1/S2)
+        // Nombre dispositivo: mayúsculas, font pequeño, color gris (C_LABEL)
         char dev_upper[32];
         strncpy(dev_upper, DEVICE_ID, sizeof(dev_upper) - 1);
         dev_upper[sizeof(dev_upper) - 1] = '\0';
         for (char *c = dev_upper; *c; c++) *c = toupper((unsigned char)*c);
-        s_gfx->setFont(&FreeSans9pt7b);
+        s_gfx->setFont(nullptr);      // default 5×8, más pequeño que FreeSans9pt
         s_gfx->setTextSize(1);
         s_gfx->setTextColor(C_LABEL);
-        s_gfx->setCursor(12, HDR_Y + 25);
+        s_gfx->setCursor(12, HDR_Y + 16);   // centrado verticalmente en el header
         s_gfx->print(dev_upper);
 
         // GSM (derecha)
