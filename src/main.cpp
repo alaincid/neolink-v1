@@ -111,11 +111,14 @@ void loop() {
 
             if (http_code == 200 || http_code == 201) {
                 Serial.printf("[MAIN] POST OK (HTTP %d)\n", http_code);
-            } else {
-                Serial.printf("[MAIN] POST falló (HTTP %d) — reintentando proxima vez\n",
-                              http_code);
-                // Si falló, intenta reconectar GPRS
+            } else if (http_code == -2) {
+                // -2 = TCP falló — reconectar GPRS
+                Serial.println("[MAIN] TCP falló — reconectando GPRS...");
                 modem_ready = modem_connect();
+            } else {
+                // -1 = HTTP ok pero respuesta no parseada — no reconectar
+                Serial.printf("[MAIN] POST status %d — reintentando proxima vez\n",
+                              http_code);
             }
         }
     }

@@ -45,6 +45,6 @@
 #define DEVICE_TOKEN     "DEVICE_SECRET"   // reemplazar antes de producción
 
 // ── Backend (Fase 3) ─────────────────────────
-#define BACKEND_HOST     "EC2_PUBLIC_IP"
+#define BACKEND_HOST     "3.222.162.34"
 #define BACKEND_PORT     8080
 #define BACKEND_PATH     "/api/readings"
