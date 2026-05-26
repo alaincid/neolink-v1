@@ -78,13 +78,8 @@ bool power_init() {
     axp_write(AXP_IRQ_OFF_CFG, 0x06);  // PWRON > OFFLEVEL como fuente de apagado
     axp_write(AXP_PWRKEY_CFG,  0x10);  // 4 s de pulsación para apagar
 
-    // ── DC-DC: solo DC1 activo (núcleo ESP32-S3 @ 3.3V) ───────────────────
-    axp_write(AXP_DC_EN,  0x01);                  // DC1 enable, DC2-5 off
-    axp_write(AXP_DC1_VOL, (3300 - 1500) / 100);  // DC1 = 3.3V → valor 18
-
-    // ── LDOs: apagar todos primero ─────────────────────────────────────────
-    axp_write(AXP_LDO0_EN, 0x00);
-    axp_write(AXP_LDO1_EN, 0x00);
+    // ── DC-DC: NO se toca — los rails DC pueden estar alimentando el backlight
+    // Solo aseguramos ALDO1+BLDO1+BLDO2 para los rails LCD
 
     // ── Voltajes de los LDOs de la pantalla ───────────────────────────────
     // ALDO1 = 3.3V → alimenta la pantalla y periféricos
@@ -96,9 +91,11 @@ bool power_init() {
     // BLDO2 = 2.8V → AVDD (analog del LCD)
     axp_write(AXP_BLDO2_VOL, (2800 - 500) / 100);  // = 23
 
-    // ── Encender ALDO1 + BLDO1 + BLDO2 ───────────────────────────────────
-    // 0x31 = 0b00110001 → bit0=ALDO1, bit4=BLDO1, bit5=BLDO2
-    axp_write(AXP_LDO0_EN, 0x31);
+    // ── Encender ALDO1 + BLDO1 + BLDO2 sin tocar otros LDOs ──────────────
+    // Leer estado actual y solo activar los bits necesarios
+    uint8_t ldo_state = axp_read(AXP_LDO0_EN);
+    // bit0=ALDO1, bit4=BLDO1, bit5=BLDO2
+    axp_write(AXP_LDO0_EN, ldo_state | 0x31);
 
     // ── Carga de batería ───────────────────────────────────────────────────
     axp_write(AXP_CHG_VOL,     0x02);  // CV = 4.1V
