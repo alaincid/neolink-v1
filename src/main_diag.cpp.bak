@@ -1,0 +1,17 @@
+// Firmware mínimo de diagnóstico — sin sensores
+// Solo para verificar que el ESP32-S3 arranca y el USB-CDC funciona
+
+#include <Arduino.h>
+
+void setup() {
+    Serial.begin(115200);
+    delay(2000);
+    Serial.println("============================");
+    Serial.println("  NEOLINK — DIAG BOOT OK   ");
+    Serial.println("============================");
+}
+
+void loop() {
+    Serial.printf("Uptime: %lu ms\n", millis());
+    delay(1000);
+}
