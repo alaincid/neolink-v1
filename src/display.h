@@ -28,6 +28,7 @@ struct DisplayData {
     // General
     uint8_t  battery_pct;
     uint32_t last_post_ms;    // millis() del último POST OK
+    time_t   current_time;    // 0 = no sincronizado; >0 = tiempo real (NTP)
 };
 
 bool display_init();

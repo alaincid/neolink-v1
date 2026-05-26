@@ -13,6 +13,7 @@
 #include "config.h"
 
 #include <Wire.h>
+#include <time.h>
 #include <Arduino_GFX_Library.h>
 #include <TCA9554.h>
 #include "FreeSans24pt7b.h"
@@ -44,8 +45,9 @@
 #define FTR_H   41
 
 // Offsets dentro de cada card (y relativo al cy del card)
-#define LBL_OFF  4     // top of label text (default font size-2, 16px tall)
-#define LBL_H    20    // area reservada para la etiqueta
+// FreeSans9pt7b: setCursor y = baseline; ascender ~13px, descender ~3px
+#define LBL_OFF  20    // baseline de la etiqueta (texto arranca ~7px desde cy)
+#define LBL_H    26    // área reservada para la etiqueta
 #define NUM_DY   82    // baseline número grande
 #define UNT_DY   60    // baseline unidad
 #define SUB_DY   100   // baseline "sensor no conectado"
@@ -190,12 +192,12 @@ static void draw_sparkline(int16_t cx, int16_t cy, int16_t cw, int16_t ch,
     s_gfx->print(lb);
 }
 
-// ── Etiqueta del card (default font x2, 16px tall) ────────────────────────
+// ── Etiqueta del card (FreeSans9pt7b — proporcional, bonita) ──────────────
 static void redraw_label(int16_t cy, const char *lbl) {
-    // default font size-2: cursor y = TOP of glyph, 16px tall
-    s_gfx->fillRect(0, cy + LBL_OFF - 2, LCD_WIDTH, LBL_H, C_BG);
-    s_gfx->setFont(nullptr);
-    s_gfx->setTextSize(2);
+    // FreeSans9pt7b: cursor y = baseline; glifo ocupa baseline-13 a baseline+3
+    s_gfx->fillRect(0, cy + 4, LCD_WIDTH, LBL_H, C_BG);
+    s_gfx->setFont(&FreeSans9pt7b);
+    s_gfx->setTextSize(1);
     s_gfx->setTextColor(C_LABEL);
     s_gfx->setCursor(14, cy + LBL_OFF);
     s_gfx->print(lbl);
@@ -349,17 +351,14 @@ void display_update(const DisplayData &d) {
         // GSM (derecha)
         draw_gsm_bars(LCD_WIDTH - 36, HDR_Y + 10, d.gsm_rssi, d.gsm_connected);
 
-        // WiFi (ícono a la izquierda de GSM)
-        // Solo contar bars si STA conectado Y rssi negativo (evita rssi=0 default)
+        // WiFi — arcos solo si conectado STA con rssi negativo válido
+        // AP mode y sin conexión → todo dim (wbars = 0)
         uint8_t wbars = 0;
-        if (d.wifi_ap_mode) {
-            wbars = 2;
-        } else if (d.wifi_connected && d.wifi_rssi < 0) {
+        if (d.wifi_connected && !d.wifi_ap_mode && d.wifi_rssi < 0) {
             if      (d.wifi_rssi >= -50) wbars = 3;
             else if (d.wifi_rssi >= -65) wbars = 2;
             else                         wbars = 1;
         }
-        // wbars=0 → icono dim (no conectado)
         draw_wifi_icon(LCD_WIDTH - 36 - 30, HDR_Y + 11, wbars);
 
         s_hdr_gsm_prev   = d.gsm_rssi;
@@ -432,20 +431,43 @@ void display_update(const DisplayData &d) {
         s_bat_prev = d.battery_pct;
     }
 
+    // Footer timestamp: fecha/hora real (NTP) o uptime si no sincronizado
     uint32_t cur_s = millis() / 1000;
-    if (cur_s != s_ftr_last_s) {
-        s_gfx->fillRect(130, FTR_Y, LCD_WIDTH - 130, FTR_H, C_BG);
-        char buf[12];
-        snprintf(buf, sizeof(buf), "%02lu:%02lu:%02lu",
-                 (unsigned long)(cur_s / 3600),
-                 (unsigned long)((cur_s % 3600) / 60),
-                 (unsigned long)(cur_s % 60));
+    // Redibuja cada minuto si hay NTP, o cada segundo si solo hay uptime
+    bool time_synced = (d.current_time > 1000000000UL);
+    uint32_t ftr_tick = time_synced ? (cur_s / 60) : cur_s;
+    if (ftr_tick != s_ftr_last_s) {
+        s_gfx->fillRect(100, FTR_Y, LCD_WIDTH - 100, FTR_H, C_BG);
+        char buf[24];
+        if (time_synced) {
+            // Formato: "26 may  3:27 AM"
+            static const char *MES[] = {
+                "ene","feb","mar","abr","may","jun",
+                "jul","ago","sep","oct","nov","dic"
+            };
+            struct tm *ti = localtime(&d.current_time);
+            int h = ti->tm_hour % 12;
+            if (h == 0) h = 12;
+            snprintf(buf, sizeof(buf), "%d %s  %d:%02d %s",
+                     ti->tm_mday, MES[ti->tm_mon],
+                     h, ti->tm_min,
+                     ti->tm_hour < 12 ? "AM" : "PM");
+        } else {
+            // Uptime hasta que se sincronice
+            snprintf(buf, sizeof(buf), "%02lu:%02lu:%02lu",
+                     (unsigned long)(cur_s / 3600),
+                     (unsigned long)((cur_s % 3600) / 60),
+                     (unsigned long)(cur_s % 60));
+        }
         s_gfx->setFont(&FreeSans9pt7b);
         s_gfx->setTextSize(1);
         s_gfx->setTextColor(C_UNIT);
-        s_gfx->setCursor(190, FTR_Y + 27);
+        // Alinea a la derecha del footer
+        int16_t bx, by; uint16_t tw, th;
+        s_gfx->getTextBounds(buf, 0, FTR_Y + 27, &bx, &by, &tw, &th);
+        s_gfx->setCursor(LCD_WIDTH - (int16_t)tw - 12, FTR_Y + 27);
         s_gfx->print(buf);
-        s_ftr_last_s = cur_s;
+        s_ftr_last_s = ftr_tick;
     }
 
     s_gfx->setFont(nullptr);

@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <time.h>
 #include "config.h"
 #include "sensors.h"
 #include "modem_sim800.h"
@@ -133,6 +134,7 @@ void loop() {
             disp.wifi_ap_mode    = (winfo.state == WIFI_AP_MODE);
             disp.battery_pct     = battery_pct();
             disp.last_post_ms    = last_post_ms;
+            disp.current_time    = time(nullptr);  // 0 hasta NTP sync
 
             display_update(disp);
         }

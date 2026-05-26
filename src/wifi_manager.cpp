@@ -3,6 +3,7 @@
 #include "config.h"
 #include <WiFi.h>
 #include <WiFiClient.h>
+#include <time.h>
 
 // ── Estado ────────────────────────────────────────────────────────────────
 static WifiInfo  s_info            = { WIFI_IDLE, 0, "0.0.0.0", "" };
@@ -62,6 +63,9 @@ void wifi_manager_loop() {
                 strlcpy(s_info.ip, WiFi.localIP().toString().c_str(), sizeof(s_info.ip));
                 Serial.printf("[WIFI] Connected → IP: %s  RSSI: %d dBm\n",
                               s_info.ip, s_info.rssi);
+                // NTP sync — México CDMX: UTC-6 permanente (sin horario de verano desde 2023)
+                configTime(-6 * 3600, 0, "pool.ntp.org", "time.google.com");
+                Serial.println("[WIFI] NTP sync iniciado");
             } else if (millis() - s_connect_start > WIFI_CONNECT_TIMEOUT_MS) {
                 Serial.println("[WIFI] Timeout — starting AP mode");
                 start_ap();
