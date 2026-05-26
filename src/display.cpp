@@ -1,10 +1,15 @@
 // ─────────────────────────────────────────────
 //  NEOLINK V1 — display.cpp
-//  Layout idéntico a imagen de referencia:
-//    Header  (40px): nombre dispositivo + barras señal
-//    Card 1 (198px): sensor primario (PT100 si hay, sino SHT35 temp)
-//    Card 2 (198px): sensor secundario (SHT35 si Card1=PT100, sino hum)
-//    Footer  (44px): batería + uptime/sync
+//
+//  Layout (portrait 320×480):
+//    Header  40px  : nombre + barras de señal
+//    Card 1 198px  : SHT35 → alterna temp 5s / hum 5s
+//                    PT100 → temperatura fija
+//    Card 2 198px  : segundo sensor (o N/A)
+//    Footer  44px  : batería + uptime
+//
+//  Font números : FreeSans24pt7b  (regular — más delgada, más elegante)
+//  Font labels  : FreeSans9pt7b
 // ─────────────────────────────────────────────
 
 #include "display.h"
@@ -13,59 +18,74 @@
 #include <Wire.h>
 #include <Arduino_GFX_Library.h>
 #include <TCA9554.h>
-#include "FreeSansBold24pt7b.h"
+
+// Los fonts van DESPUÉS de Arduino_GFX (necesitan GFXfont)
+#include "FreeSans24pt7b.h"
 #include "FreeSans9pt7b.h"
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  COLORS  (RGB565)
-//  Referencia: fondo negro, números blancos, labels azul-gris, líneas azul claro
+//  COLORES  RGB565
+//  Paleta inspirada en la imagen de referencia
 // ═══════════════════════════════════════════════════════════════════════════
-#define C_BG       0x0000   // negro puro — fondo
-#define C_HDR      0x0841   // azul muy oscuro — header / footer
-#define C_DIV      0x18C3   // línea divisora
-#define C_WHITE    0xFFFF   // números
-#define C_LABEL    0x4B6D   // azul-gris — etiquetas T1 / T2
-#define C_SUB      0x2965   // gris oscuro — texto secundario
-#define C_DIM      0x39E7   // N/A, mensajes inactivos
-#define C_BAR_ON   0xFFFF   // barra señal activa — blanca (como referencia)
-#define C_BAR_OFF  0x18C3   // barra señal inactiva
-#define C_GRID     0x0861   // líneas de guía del chart
-#define C_LINE1    0x5FBF   // T1 sparkline — azul claro (como referencia)
-#define C_LINE2    0x3FFF   // T2 sparkline — cian pálido
-#define C_OK       0x07E0
-#define C_WARN     0xFCC0
-#define C_ERR      0xF800
-#define C_WIFI_ON  0x3D9F   // WiFi bars — azul suave
+#define C_BG      0x0000   // negro puro — fondo principal
+#define C_HDR     0x0841   // azul muy oscuro — header / footer
+#define C_DIVID   0x18C3   // línea divisora sutil
+#define C_WHITE   0xFFFF   // números (igual que referencia)
+#define C_LABEL   0x5ACF   // azul-gris para etiquetas T1 / T2
+#define C_UNIT    0x8C51   // unidad °C / % (gris medio)
+#define C_DIM     0x4208   // N/A / texto inactivo
+#define C_GRID    0x0861   // líneas de guía de chart (muy oscuro)
+#define C_LINE1   0x4EDF   // sparkline card 1 — azul claro (referencia)
+#define C_LINE2   0x27DF   // sparkline card 2 — cian suave
+#define C_BARON   0xFFFF   // barra señal activa (blanca — referencia)
+#define C_BAROFF  0x1082   // barra señal inactiva
+#define C_OK      0x07E0   // verde
+#define C_WARN    0xFCC0
+#define C_ERR     0xF800
+#define C_WIFION  0x3D9F   // acento WiFi (azul suave, diferente a GSM)
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  LAYOUT  (portrait 320 × 480)
+//  LAYOUT  (320 × 480)
 // ═══════════════════════════════════════════════════════════════════════════
+//  Nota: el divisor entre secciones es 1px
 #define HDR_Y    0
 #define HDR_H    40
-#define C1_Y     41      // Card 1 top  (40 + 1px div)
+#define C1_Y     41      // 0+40+1
 #define C1_H     198
-#define C2_Y     240     // Card 2 top  (41+198+1)
+#define C2_Y     240     // 41+198+1
 #define C2_H     198
-#define FTR_Y    439     // Footer top  (240+198+1)
-#define FTR_H    41
+#define FTR_Y    439     // 240+198+1
+#define FTR_H    41      // 439+41 = 480 ✓
 
-// Offsets dentro de cada card (relativos a card_y)
-#define C_LBL_DY  22    // baseline etiqueta "T1 TEMPERATURA"
-#define C_NUM_DY  80    // baseline número grande (FreeSansBold24pt textSize=1 ≈ 35px alto)
-#define C_UNT_DY  62    // baseline unidad pequeña (°C / %)  — encima del número
-#define C_SUB_DY  99    // baseline subtítulo (ej. humedad si hay)
-#define C_CHT_DY  114   // chart top
-#define C_CHT_H   81    // chart height  → bottom = 195 (dentro de 198)
+// Posiciones internas de cada card (relativas al top de la card)
+//  FreeSans24pt7b: ascender ≈ 33px, total altura glifo ≈ 38px
+#define LBL_DY    20     // baseline etiqueta "T1  TEMPERATURA"
+#define NUM_DY    80     // baseline número grande
+#define UNT_DY    58     // baseline unidad (arriba-derecha del número)
+#define SUB_DY    99     // baseline subtítulo / animación
+#define CHT_TOP   112    // y inicio chart (relativo a card top)
+#define CHT_H     83     // altura chart → bottom en 195 (dentro de 198)
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  HISTORIAL DE SPARKLINES
+//  HISTORIAL SPARKLINES
 // ═══════════════════════════════════════════════════════════════════════════
-#define HIST_N 60
+#define HIST_N  60
 
-static float   s_h1[HIST_N];  // Card 1 history
-static float   s_h2[HIST_N];  // Card 2 history
+static float   s_h1[HIST_N];
+static float   s_h2[HIST_N];
 static uint8_t s_hi   = 0;
 static uint8_t s_hcnt = 0;
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  ANIMACIÓN 5s / 5s para SHT35
+// ═══════════════════════════════════════════════════════════════════════════
+#define ALT_PERIOD_MS 5000
+
+static uint32_t s_alt1_ms  = 0;   // última vez que alternó card 1
+static bool     s_alt1_hum = false; // false=temp, true=hum
+
+static uint32_t s_alt2_ms  = 0;
+static bool     s_alt2_hum = false;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  HARDWARE
@@ -75,61 +95,63 @@ static Arduino_DataBus *s_bus = nullptr;
 static Arduino_GFX     *s_gfx = nullptr;
 static bool             s_ok          = false;
 static bool             s_static_done = false;
+static int8_t           s_last_cfg    = -1;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Centra texto entre x0 y x1, devuelve x donde terminó el texto
-static int16_t cprint(const char *str, int16_t x0, int16_t x1,
-                       int16_t y_baseline, uint16_t color) {
+// Imprime texto centrado en [x0, x1]; retorna x de final del texto
+static int16_t cprint(const char *s, int16_t x0, int16_t x1,
+                       int16_t y, uint16_t c) {
     int16_t bx, by; uint16_t tw, th;
-    s_gfx->getTextBounds(str, 0, y_baseline, &bx, &by, &tw, &th);
+    s_gfx->getTextBounds(s, 0, y, &bx, &by, &tw, &th);
     int16_t cx = x0 + ((int16_t)(x1 - x0) - (int16_t)tw) / 2;
-    s_gfx->setTextColor(color);
-    s_gfx->setCursor(cx, y_baseline);
-    s_gfx->print(str);
+    s_gfx->setTextColor(c);
+    s_gfx->setCursor(cx, y);
+    s_gfx->print(s);
     return cx + (int16_t)tw;
 }
 
-// Barras de señal — estilo referencia (blancas, 4 barras ascendentes)
-static void draw_bars(int16_t x, int16_t y, int8_t rssi,
-                       bool connected, uint16_t color_on) {
-    const uint8_t h[4] = {5, 9, 14, 19};
+// Barras de señal — 4 barras blancas ascendentes (estilo referencia)
+static void draw_bars(int16_t x, int16_t y,
+                       int8_t rssi, bool conn, uint16_t col_on) {
+    const uint8_t H[4] = {5, 9, 14, 19};
     uint8_t filled = 0;
-    if (connected) {
+    if (conn) {
         if      (rssi >= -65) filled = 4;
         else if (rssi >= -75) filled = 3;
         else if (rssi >= -85) filled = 2;
         else                  filled = 1;
     }
     for (uint8_t i = 0; i < 4; i++) {
-        uint16_t c = (i < filled) ? color_on : C_BAR_OFF;
-        s_gfx->fillRect(x + i * 7, y + (19 - h[i]), 5, h[i], c);
+        uint16_t c = (i < filled) ? col_on : C_BAROFF;
+        s_gfx->fillRect(x + i * 7, y + (19 - H[i]), 5, H[i], c);
     }
 }
 
-// Ícono de batería pequeño
-static void draw_battery(int16_t x, int16_t y, uint8_t pct) {
-    uint16_t c = (pct > 40) ? C_OK : (pct > 20) ? C_WARN : C_ERR;
-    s_gfx->drawRect(x, y, 22, 11, C_DIV);
-    s_gfx->fillRect(x + 22, y + 3, 3, 5, C_DIV);
-    int16_t fw = (int16_t)(18 * pct / 100);
-    if (fw > 0) s_gfx->fillRect(x + 2, y + 2, fw, 7, c);
+// Ícono batería compacto + porcentaje
+static void draw_battery_row(int16_t x, int16_t y, uint8_t pct) {
+    uint16_t fc = (pct > 40) ? C_OK : (pct > 20) ? C_WARN : C_ERR;
+    // Outline
+    s_gfx->drawRect(x, y, 24, 12, C_UNIT);
+    s_gfx->fillRect(x + 24, y + 3, 3, 6, C_UNIT);  // polo +
+    // Relleno
+    int16_t fw = (int16_t)(20 * pct / 100);
+    if (fw > 0) s_gfx->fillRect(x + 2, y + 2, fw, 8, fc);
 }
 
-// Dibuja un sparkline en el área indicada (fondo + grid + línea)
+// Sparkline — sin etiquetas de ejes para un look más limpio
 static void draw_sparkline(int16_t cx, int16_t cy, int16_t cw, int16_t ch,
                              float *data, uint8_t cnt, uint16_t lc) {
     s_gfx->fillRect(cx, cy, cw, ch, C_BG);
 
-    // Grid (4 líneas horizontales)
-    for (uint8_t i = 1; i <= 4; i++)
-        s_gfx->drawFastHLine(cx, cy + ch * i / 5, cw, C_GRID);
+    // Líneas de guía horizontales (3 líneas, muy sutiles)
+    for (uint8_t i = 1; i <= 3; i++)
+        s_gfx->drawFastHLine(cx, cy + ch * i / 4, cw, C_GRID);
 
     if (cnt < 2) return;
 
-    // Auto-escala
     float vmin = data[0], vmax = data[0];
     for (uint8_t i = 1; i < cnt; i++) {
         if (data[i] < vmin) vmin = data[i];
@@ -138,112 +160,91 @@ static void draw_sparkline(int16_t cx, int16_t cy, int16_t cw, int16_t ch,
     float range = vmax - vmin;
     if (range < 0.5f) { vmin -= 0.5f; vmax += 0.5f; range = 1.0f; }
 
-    // Línea (2px de grosor para visibilidad)
-    uint8_t pts = (cnt < (uint8_t)(cw / 2 + 1)) ? cnt : (uint8_t)(cw / 2);
+    uint8_t pts = (cnt < (uint8_t)((cw / 2) + 1)) ? cnt : (uint8_t)(cw / 2);
     int16_t px0 = -1, py0 = -1;
     for (uint8_t i = 0; i < pts; i++) {
         uint8_t idx = (s_hi + HIST_N - pts + i) % HIST_N;
         float   n   = constrain((data[idx] - vmin) / range, 0.f, 1.f);
         int16_t px  = cx + (int16_t)((float)i / (float)(pts - 1) * (float)(cw - 1));
-        int16_t py  = cy + ch - 2 - (int16_t)(n * (float)(ch - 4));
+        int16_t py  = cy + ch - 3 - (int16_t)(n * (float)(ch - 6));
         if (px0 >= 0) {
             s_gfx->drawLine(px0, py0,     px, py,     lc);
             s_gfx->drawLine(px0, py0 + 1, px, py + 1, lc);
         }
         px0 = px; py0 = py;
     }
-
-    // Valores mín / máx en esquinas (font default tamaño 1)
-    char lb[10];
-    s_gfx->setFont(nullptr);
-    s_gfx->setTextSize(1);
-    s_gfx->setTextColor(C_SUB);
-    snprintf(lb, sizeof(lb), "%.1f", vmax);
-    s_gfx->setCursor(cx + 4, cy + 2);
-    s_gfx->print(lb);
-    snprintf(lb, sizeof(lb), "%.1f", vmin);
-    s_gfx->setCursor(cx + 4, cy + ch - 10);
-    s_gfx->print(lb);
 }
 
-// Dibuja el contenido dinámico de una card (número + unidad + subtítulo + chart)
-//   cy           : y superior de la card
-//   has_val      : hay lectura válida
-//   val          : valor principal
-//   unit         : cadena de unidad (ej. " C" o "%")
-//   has_sub      : tiene subtítulo (ej. humedad cuando sht35 es card 1)
-//   sub_val / sub_unit: valor y unidad del subtítulo
-//   hist / hcnt  : buffer histórico y cantidad de puntos
-//   lc           : color de la línea del chart
-static void draw_card_body(int16_t cy,
-                            bool has_val, float val,
-                            const char *unit,
-                            bool has_sub, float sub_val, const char *sub_unit,
-                            float *hist, uint8_t hcnt, uint16_t lc) {
-    char buf[28];
+// Dibuja una card completa (etiqueta + número + unidad + chart)
+//   cy         : y top de la card
+//   label      : "T1  TEMPERATURA" etc.
+//   has_val    : hay lectura válida
+//   val        : valor a mostrar
+//   unit       : " C" o " %" (espacio intencional)
+//   hist/hcnt  : historial para sparkline
+//   lc         : color de la línea de chart
+static void draw_card(int16_t cy,
+                       const char *label,
+                       bool has_val, float val, const char *unit,
+                       float *hist, uint8_t hcnt, uint16_t lc) {
+    // Limpia toda la card
+    s_gfx->fillRect(0, cy, LCD_WIDTH, C1_H, C_BG);
 
-    // Limpia zona número + subtítulo
-    s_gfx->fillRect(0, cy + C_LBL_DY + 4, LCD_WIDTH,
-                    C_CHT_DY - C_LBL_DY - 4, C_BG);
-
-    if (has_val) {
-        // ── Número grande centrado ─────────────────────
-        s_gfx->setFont(&FreeSansBold24pt7b);
-        s_gfx->setTextSize(1);
-
-        snprintf(buf, sizeof(buf), "%.1f", val);
-
-        // Reserva espacio para la unidad (aprox 22px en FreeSans9pt)
-        int16_t unit_w = 24;
-        int16_t bx, by; uint16_t tw, th;
-        s_gfx->getTextBounds(buf, 0, cy + C_NUM_DY, &bx, &by, &tw, &th);
-
-        // Centra número + unidad juntos
-        int16_t total_w = (int16_t)tw + unit_w + 4;
-        int16_t start_x = (LCD_WIDTH - total_w) / 2;
-
-        s_gfx->setTextColor(C_WHITE);
-        s_gfx->setCursor(start_x, cy + C_NUM_DY);
-        s_gfx->print(buf);
-
-        // Unidad en FreeSans9pt, pegada arriba a la derecha del número
-        s_gfx->setFont(&FreeSans9pt7b);
-        s_gfx->setTextSize(1);
-        s_gfx->setTextColor(C_LABEL);
-        s_gfx->setCursor(start_x + (int16_t)tw + 4, cy + C_UNT_DY);
-        s_gfx->print(unit);
-
-        // ── Subtítulo (ej. humedad cuando card1=SHT35) ─
-        if (has_sub) {
-            snprintf(buf, sizeof(buf), "%.1f %s", sub_val, sub_unit);
-            s_gfx->setFont(&FreeSans9pt7b);
-            s_gfx->setTextSize(1);
-            cprint(buf, 0, LCD_WIDTH, cy + C_SUB_DY, C_SUB);
-        }
-    } else {
-        // N/A
-        s_gfx->setFont(&FreeSansBold24pt7b);
-        s_gfx->setTextSize(1);
-        cprint("N/A", 0, LCD_WIDTH, cy + C_NUM_DY, C_DIM);
-
-        s_gfx->setFont(&FreeSans9pt7b);
-        s_gfx->setTextSize(1);
-        cprint("sensor no conectado", 0, LCD_WIDTH, cy + C_SUB_DY, C_DIV);
-    }
-
-    // Chart
-    draw_sparkline(10, cy + C_CHT_DY, LCD_WIDTH - 20, C_CHT_H,
-                   hist, hcnt, lc);
-}
-
-// Dibuja etiqueta de card (se redibuja solo si cambia el estado de sensores)
-static void draw_card_label(int16_t cy, const char *label) {
-    s_gfx->fillRect(0, cy, LCD_WIDTH, C_LBL_DY + 4, C_BG);
+    // ── Etiqueta ───────────────────────────────────────────────────
     s_gfx->setFont(&FreeSans9pt7b);
     s_gfx->setTextSize(1);
     s_gfx->setTextColor(C_LABEL);
-    s_gfx->setCursor(12, cy + C_LBL_DY);
+    s_gfx->setCursor(12, cy + LBL_DY);
     s_gfx->print(label);
+
+    // ── Número + unidad ────────────────────────────────────────────
+    if (has_val) {
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%.1f", val);
+
+        // Mide el número para centrar el bloque número+unidad juntos
+        s_gfx->setFont(&FreeSans24pt7b);
+        s_gfx->setTextSize(1);
+        int16_t bx, by; uint16_t tw, th;
+        s_gfx->getTextBounds(buf, 0, cy + NUM_DY, &bx, &by, &tw, &th);
+
+        // Mide la unidad en FreeSans9pt
+        s_gfx->setFont(&FreeSans9pt7b);
+        s_gfx->setTextSize(1);
+        int16_t ux, uy; uint16_t utw, uth;
+        s_gfx->getTextBounds(unit, 0, cy + UNT_DY, &ux, &uy, &utw, &uth);
+
+        // Gap de 4px entre número y unidad
+        int16_t block_w = (int16_t)tw + 4 + (int16_t)utw;
+        int16_t start_x = (LCD_WIDTH - block_w) / 2;
+
+        // Dibuja número (FreeSans24pt — regular, delgada)
+        s_gfx->setFont(&FreeSans24pt7b);
+        s_gfx->setTextSize(1);
+        s_gfx->setTextColor(C_WHITE);
+        s_gfx->setCursor(start_x, cy + NUM_DY);
+        s_gfx->print(buf);
+
+        // Dibuja unidad en FreeSans9pt, alineada arriba
+        s_gfx->setFont(&FreeSans9pt7b);
+        s_gfx->setTextSize(1);
+        s_gfx->setTextColor(C_UNIT);
+        s_gfx->setCursor(start_x + (int16_t)tw + 4, cy + UNT_DY);
+        s_gfx->print(unit);
+
+    } else {
+        // Sin valor — N/A centrado
+        s_gfx->setFont(&FreeSans24pt7b);
+        s_gfx->setTextSize(1);
+        cprint("N/A", 0, LCD_WIDTH, cy + NUM_DY, C_DIM);
+
+        s_gfx->setFont(&FreeSans9pt7b);
+        s_gfx->setTextSize(1);
+        cprint("sensor no conectado", 0, LCD_WIDTH, cy + SUB_DY, C_DIVID);
+    }
+
+    // ── Sparkline ──────────────────────────────────────────────────
+    draw_sparkline(10, cy + CHT_TOP, LCD_WIDTH - 20, CHT_H, hist, hcnt, lc);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -256,18 +257,16 @@ bool display_init() {
     Wire1.setClock(400000);
 
     if (!s_tca.begin()) {
-        Serial.printf("[DISP] ERROR: TCA9554 0x%02X no encontrado\n", TCA9554_ADDR);
+        Serial.printf("[DISP] TCA9554 0x%02X no encontrado\n", TCA9554_ADDR);
         return false;
     }
 
     s_tca.pinMode1(TCA_LCD_RST_PIN, OUTPUT);
     s_tca.pinMode1(TCA_LCD_CS_PIN,  OUTPUT);
     s_tca.write1(TCA_LCD_CS_PIN,  HIGH);
-    s_tca.write1(TCA_LCD_RST_PIN, LOW);
-    delay(20);
-    s_tca.write1(TCA_LCD_RST_PIN, HIGH);
-    delay(150);
-    s_tca.write1(TCA_LCD_CS_PIN, LOW);  // CS permanente bajo
+    s_tca.write1(TCA_LCD_RST_PIN, LOW);  delay(20);
+    s_tca.write1(TCA_LCD_RST_PIN, HIGH); delay(150);
+    s_tca.write1(TCA_LCD_CS_PIN,  LOW);  // CS activo permanente
 
     ledcSetup(LCD_BL_CHANNEL, 5000, 8);
     ledcAttachPin(LCD_BL_PIN, LCD_BL_CHANNEL);
@@ -278,7 +277,7 @@ bool display_init() {
     s_gfx = new Arduino_ST7796(s_bus, GFX_NOT_DEFINED, 0 /*portrait*/, true /*IPS*/);
 
     if (!s_gfx->begin(20000000UL)) {
-        Serial.println("[DISP] ERROR: GFX begin falló");
+        Serial.println("[DISP] GFX begin falló");
         return false;
     }
 
@@ -292,68 +291,115 @@ bool display_init() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  ESTÁTICO (solo una vez)
+//  ESTÁTICO (una sola vez)
 // ═══════════════════════════════════════════════════════════════════════════
 static void draw_static() {
     s_gfx->fillScreen(C_BG);
 
-    // Header y footer backgrounds
     s_gfx->fillRect(0, HDR_Y, LCD_WIDTH, HDR_H, C_HDR);
     s_gfx->fillRect(0, FTR_Y, LCD_WIDTH, FTR_H, C_HDR);
 
-    // Líneas divisoras (muy sutiles, como en la referencia)
-    s_gfx->drawFastHLine(0, C1_Y - 1,  LCD_WIDTH, C_DIV);
-    s_gfx->drawFastHLine(0, C2_Y - 1,  LCD_WIDTH, C_DIV);
-    s_gfx->drawFastHLine(0, FTR_Y - 1, LCD_WIDTH, C_DIV);
+    // Líneas divisoras (1px)
+    s_gfx->drawFastHLine(0, C1_Y - 1,  LCD_WIDTH, C_DIVID);
+    s_gfx->drawFastHLine(0, C2_Y - 1,  LCD_WIDTH, C_DIVID);
+    s_gfx->drawFastHLine(0, FTR_Y - 1, LCD_WIDTH, C_DIVID);
 
     s_gfx->setFont(nullptr);
     s_static_done = true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  UPDATE
+//  UPDATE  (llamado periódicamente desde main)
 // ═══════════════════════════════════════════════════════════════════════════
-
-// Track de estado anterior de sensores para redibujar labels solo cuando cambia
-static int8_t s_last_cfg = -1;  // -1=never, 0=neither, 1=sht35only, 2=pt100only, 3=both
-
 void display_update(const DisplayData &d) {
     if (!s_ok) return;
     if (!s_static_done) draw_static();
 
-    // ── Determinar qué muestra cada card ──────────────────────────────
-    bool has_pt100 = d.pt100_ok  && !isnan(d.temp_pt100);
-    bool has_sht35 = d.sht35_ok  && !isnan(d.temp_sht35);
-    bool has_hum   = d.sht35_ok  && !isnan(d.humidity);
+    bool has_sht = d.sht35_ok && !isnan(d.temp_sht35) && !isnan(d.humidity);
+    bool has_pt  = d.pt100_ok && !isnan(d.temp_pt100);
 
-    // Card 1: PT100 si hay, sino SHT35 temperatura
-    // Card 2: SHT35 temperatura (si Card1=PT100) o SHT35 humedad (si Card1=SHT35)
-    bool   c1_ok,  c2_ok;
-    float  c1_val, c2_val;
-    const char *c1_unit, *c2_unit;
-    const char *c1_lbl,  *c2_lbl;
-    bool   c1_sub_ok  = false;
-    float  c1_sub_val = 0;
-    const char *c1_sub_unit = "";
+    // ── Determinar qué muestra cada card ─────────────────────────────────
+    //   Card 1: SHT35 si conectado (alterna temp/hum), PT100 si no hay SHT35
+    //   Card 2: PT100 si conectado, sino N/A
+    //   (si ambos: Card1=SHT35 alternando, Card2=PT100 temperatura)
 
-    if (has_pt100) {
-        c1_ok  = true;  c1_val = d.temp_pt100; c1_unit = " C";  c1_lbl = "T1  PT100";
-        c2_ok  = has_sht35; c2_val = has_sht35 ? d.temp_sht35 : 0;
-        c2_unit = " C";     c2_lbl = has_sht35 ? "T2  REFERENCIA" : "T2  SHT35";
+    // Card 1 — SHT35 si hay, sino PT100
+    float  c1_val;
+    const char *c1_label, *c1_unit;
+    bool   c1_ok;
+
+    if (has_sht) {
+        // Alterna cada 5 segundos
+        if (millis() - s_alt1_ms >= ALT_PERIOD_MS) {
+            s_alt1_hum = !s_alt1_hum;
+            s_alt1_ms  = millis();
+        }
+        if (!s_alt1_hum) {
+            c1_val   = d.temp_sht35;
+            c1_unit  = " C";
+            c1_label = "T1  TEMPERATURA";
+        } else {
+            c1_val   = d.humidity;
+            c1_unit  = " %";
+            c1_label = "T1  HUMEDAD";
+        }
+        c1_ok = true;
+    } else if (has_pt) {
+        c1_val   = d.temp_pt100;
+        c1_unit  = " C";
+        c1_label = "T1  PT100";
+        c1_ok    = true;
     } else {
-        c1_ok  = has_sht35; c1_val = has_sht35 ? d.temp_sht35 : 0;
-        c1_unit = " C";     c1_lbl = "T1  TEMPERATURA";
-        c2_ok  = has_hum;   c2_val = has_hum   ? d.humidity    : 0;
-        c2_unit = " %";     c2_lbl = "T2  HUMEDAD";
+        c1_val   = 0;
+        c1_unit  = "";
+        c1_label = "T1";
+        c1_ok    = false;
     }
 
-    // ── Historial ─────────────────────────────────────────────────────
-    s_h1[s_hi] = c1_ok ? c1_val : (s_hcnt > 0 ? s_h1[(s_hi + HIST_N - 1) % HIST_N] : 0.f);
-    s_h2[s_hi] = c2_ok ? c2_val : (s_hcnt > 0 ? s_h2[(s_hi + HIST_N - 1) % HIST_N] : 0.f);
+    // Card 2 — PT100 si hay
+    float  c2_val;
+    const char *c2_label, *c2_unit;
+    bool   c2_ok;
+
+    if (has_pt) {
+        c2_val   = d.temp_pt100;
+        c2_unit  = " C";
+        c2_label = "T2  PT100";
+        c2_ok    = true;
+    } else if (has_sht && !has_pt) {
+        // Solo SHT35 conectado: Card2 también alterna (desfasado 2.5s)
+        if (millis() - s_alt2_ms >= ALT_PERIOD_MS) {
+            s_alt2_hum = !s_alt2_hum;
+            s_alt2_ms  = millis();
+        }
+        // Card2 empieza en el estado opuesto a Card1 (muestra lo que no muestra Card1)
+        if (s_alt1_hum) {
+            c2_val   = d.temp_sht35;
+            c2_unit  = " C";
+            c2_label = "T2  TEMPERATURA";
+        } else {
+            c2_val   = d.humidity;
+            c2_unit  = " %";
+            c2_label = "T2  HUMEDAD";
+        }
+        c2_ok = true;
+    } else {
+        c2_val   = 0;
+        c2_unit  = "";
+        c2_label = "T2  PT100";
+        c2_ok    = false;
+    }
+
+    // ── Historial ─────────────────────────────────────────────────────────
+    //   Guarda el valor REAL del sensor (no el alternado)
+    float raw1 = has_sht  ? d.temp_sht35 : (has_pt ? d.temp_pt100 : 0);
+    float raw2 = has_pt   ? d.temp_pt100 : (has_sht ? d.humidity   : 0);
+    s_h1[s_hi] = raw1;
+    s_h2[s_hi] = raw2;
     s_hi = (s_hi + 1) % HIST_N;
     if (s_hcnt < HIST_N) s_hcnt++;
 
-    // ── HEADER ────────────────────────────────────────────────────────
+    // ── HEADER ────────────────────────────────────────────────────────────
     s_gfx->fillRect(0, HDR_Y, LCD_WIDTH, HDR_H, C_HDR);
 
     // Nombre del dispositivo (izquierda)
@@ -363,65 +409,63 @@ void display_update(const DisplayData &d) {
     s_gfx->setCursor(12, HDR_Y + 25);
     s_gfx->print(DEVICE_ID);
 
-    // Barras GSM (derecha) — blancas como en la referencia
-    draw_bars(250, HDR_Y + 10, d.gsm_rssi, d.gsm_connected, C_BAR_ON);
+    // Barras de señal (derecha)
+    // Muestra GSM en blanco Y WiFi en azul (como el header de referencia con una sola señal)
+    // Si hay WiFi: una sola barra WiFi más a la derecha
+    // Si no hay WiFi: solo GSM
+    int16_t bars_x = LCD_WIDTH - 36;  // GSM bars
 
-    // Barras WiFi (a la izquierda de GSM) — azul si conectado, apagadas si AP
-    if (d.wifi_ap_mode) {
-        // "AP" en azul muy pequeño
+    if (d.wifi_connected && !d.wifi_ap_mode) {
+        // WiFi + GSM: dos grupos de barras
+        draw_bars(bars_x - 35, HDR_Y + 11, d.wifi_rssi, true, C_WIFION);
+        draw_bars(bars_x,      HDR_Y + 11, d.gsm_rssi,  d.gsm_connected, C_BARON);
+    } else if (d.wifi_ap_mode) {
+        // AP mode: barras GSM + "AP" en azul
+        draw_bars(bars_x, HDR_Y + 11, d.gsm_rssi, d.gsm_connected, C_BARON);
         s_gfx->setFont(nullptr);
         s_gfx->setTextSize(1);
-        s_gfx->setTextColor(C_WIFI_ON);
-        s_gfx->setCursor(224, HDR_Y + 18);
+        s_gfx->setTextColor(C_WIFION);
+        s_gfx->setCursor(bars_x - 25, HDR_Y + 22);
         s_gfx->print("AP");
     } else {
-        draw_bars(220, HDR_Y + 10, d.wifi_rssi, d.wifi_connected, C_WIFI_ON);
+        // Solo GSM
+        draw_bars(bars_x, HDR_Y + 11, d.gsm_rssi, d.gsm_connected, C_BARON);
     }
 
-    // ── CARD LABELS (solo si cambia config de sensores) ──────────────
-    int8_t cfg = (int8_t)((has_pt100 ? 2 : 0) | (has_sht35 ? 1 : 0));
-    if (cfg != s_last_cfg) {
-        draw_card_label(C1_Y, c1_lbl);
-        draw_card_label(C2_Y, c2_lbl);
-        s_last_cfg = cfg;
-    }
+    // ── CARDS ─────────────────────────────────────────────────────────────
+    draw_card(C1_Y, c1_label, c1_ok, c1_val, c1_unit, s_h1, s_hcnt, C_LINE1);
+    draw_card(C2_Y, c2_label, c2_ok, c2_val, c2_unit, s_h2, s_hcnt, C_LINE2);
 
-    // ── CARD 1 BODY ───────────────────────────────────────────────────
-    draw_card_body(C1_Y,
-                   c1_ok, c1_val, c1_unit,
-                   c1_sub_ok, c1_sub_val, c1_sub_unit,
-                   s_h1, s_hcnt, C_LINE1);
-
-    // ── CARD 2 BODY ───────────────────────────────────────────────────
-    draw_card_body(C2_Y,
-                   c2_ok, c2_val, c2_unit,
-                   false, 0, "",
-                   s_h2, s_hcnt, C_LINE2);
-
-    // ── FOOTER ────────────────────────────────────────────────────────
+    // ── FOOTER ────────────────────────────────────────────────────────────
     s_gfx->fillRect(0, FTR_Y, LCD_WIDTH, FTR_H, C_HDR);
-    s_gfx->setFont(&FreeSans9pt7b);
-    s_gfx->setTextSize(1);
 
-    // Batería izquierda
-    draw_battery(10, FTR_Y + 15, d.battery_pct);
+    // Batería (izquierda)
+    draw_battery_row(10, FTR_Y + 15, d.battery_pct);
     char buf[32];
     snprintf(buf, sizeof(buf), " %d%%", d.battery_pct);
-    s_gfx->setTextColor(C_LABEL);
-    s_gfx->setCursor(36, FTR_Y + 26);
+    s_gfx->setFont(&FreeSans9pt7b);
+    s_gfx->setTextSize(1);
+    s_gfx->setTextColor(C_UNIT);
+    s_gfx->setCursor(37, FTR_Y + 27);
     s_gfx->print(buf);
 
-    // Red activa (centro-izq)
-    s_gfx->setCursor(90, FTR_Y + 26);
+    // Estado de red (centro)
+    s_gfx->setCursor(100, FTR_Y + 27);
     if (d.wifi_connected && !d.wifi_ap_mode) {
-        s_gfx->setTextColor(C_WIFI_ON);
+        s_gfx->setTextColor(C_WIFION);
         s_gfx->print("WiFi");
+        if (d.gsm_connected) {
+            s_gfx->setTextColor(C_DIVID);
+            s_gfx->print(" + ");
+            s_gfx->setTextColor(C_OK);
+            s_gfx->print("GSM");
+        }
     } else if (d.gsm_connected) {
         s_gfx->setTextColor(C_OK);
         s_gfx->print("GSM");
-    } else {
-        s_gfx->setTextColor(C_ERR);
-        s_gfx->print("--");
+    } else if (d.wifi_ap_mode) {
+        s_gfx->setTextColor(C_WIFION);
+        s_gfx->print("AP");
     }
 
     // Tiempo / sync (derecha)
@@ -429,7 +473,7 @@ void display_update(const DisplayData &d) {
     if (d.last_post_ms > 0) {
         uint32_t ago = (millis() - d.last_post_ms) / 1000;
         if (ago < 60)
-            snprintf(buf, sizeof(buf), "sync %lus",  (unsigned long)ago);
+            snprintf(buf, sizeof(buf), "sync %lus", (unsigned long)ago);
         else
             snprintf(buf, sizeof(buf), "%02lu:%02lu:%02lu",
                      (unsigned long)(up / 3600),
@@ -441,8 +485,8 @@ void display_update(const DisplayData &d) {
                  (unsigned long)((up % 3600) / 60),
                  (unsigned long)(up % 60));
     }
-    s_gfx->setTextColor(C_SUB);
-    s_gfx->setCursor(190, FTR_Y + 26);
+    s_gfx->setTextColor(C_LABEL);
+    s_gfx->setCursor(185, FTR_Y + 27);
     s_gfx->print(buf);
 
     s_gfx->setFont(nullptr);
