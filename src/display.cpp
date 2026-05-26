@@ -321,10 +321,9 @@ void display_update(const DisplayData &d) {
     if (s_hcnt < HIST_N) s_hcnt++;
 
     // ── Card 1: SHT35 ─────────────────────────────────────────────────
-    // Etiquetas abreviadas — visualmente más pequeñas con FreeSans9pt7b
     float       c1_val  = has_sht ? (s_alt_hum ? d.humidity : d.temp_sht35) : 0;
     const char *c1_unit = has_sht ? (s_alt_hum ? " %" : " C") : "";
-    const char *c1_lbl  = has_sht ? (s_alt_hum ? "S1  HUM" : "S1  TEMP") : "S1  SHT35";
+    const char *c1_lbl  = has_sht ? (s_alt_hum ? "S1  HUMEDAD" : "S1  TEMPERATURA") : "S1  SHT35";
     float      *c1_hist = s_alt_hum ? s_h_hum : s_h_temp;
 
     // ── Card 2: PT100 ─────────────────────────────────────────────────
@@ -344,11 +343,16 @@ void display_update(const DisplayData &d) {
     if (hdr_changed) {
         s_gfx->fillRect(0, HDR_Y, LCD_WIDTH, HDR_H, C_BG);
 
+        // Nombre dispositivo: mayúsculas, color gris (igual que labels S1/S2)
+        char dev_upper[32];
+        strncpy(dev_upper, DEVICE_ID, sizeof(dev_upper) - 1);
+        dev_upper[sizeof(dev_upper) - 1] = '\0';
+        for (char *c = dev_upper; *c; c++) *c = toupper((unsigned char)*c);
         s_gfx->setFont(&FreeSans9pt7b);
         s_gfx->setTextSize(1);
-        s_gfx->setTextColor(C_WHITE);
+        s_gfx->setTextColor(C_LABEL);
         s_gfx->setCursor(12, HDR_Y + 25);
-        s_gfx->print(DEVICE_ID);
+        s_gfx->print(dev_upper);
 
         // GSM (derecha)
         draw_gsm_bars(LCD_WIDTH - 36, HDR_Y + 10, d.gsm_rssi, d.gsm_connected);
