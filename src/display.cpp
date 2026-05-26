@@ -356,7 +356,8 @@ void display_update(const DisplayData &d) {
         c1_ok    = false;
     }
 
-    // Card 2 — PT100 si hay
+    // Card 2 — SOLO PT100 (módulo físico independiente)
+    //   Si PT100 no está conectado → N/A, punto.
     float  c2_val;
     const char *c2_label, *c2_unit;
     bool   c2_ok;
@@ -366,23 +367,6 @@ void display_update(const DisplayData &d) {
         c2_unit  = " C";
         c2_label = "T2  PT100";
         c2_ok    = true;
-    } else if (has_sht && !has_pt) {
-        // Solo SHT35 conectado: Card2 también alterna (desfasado 2.5s)
-        if (millis() - s_alt2_ms >= ALT_PERIOD_MS) {
-            s_alt2_hum = !s_alt2_hum;
-            s_alt2_ms  = millis();
-        }
-        // Card2 empieza en el estado opuesto a Card1 (muestra lo que no muestra Card1)
-        if (s_alt1_hum) {
-            c2_val   = d.temp_sht35;
-            c2_unit  = " C";
-            c2_label = "T2  TEMPERATURA";
-        } else {
-            c2_val   = d.humidity;
-            c2_unit  = " %";
-            c2_label = "T2  HUMEDAD";
-        }
-        c2_ok = true;
     } else {
         c2_val   = 0;
         c2_unit  = "";
@@ -437,9 +421,11 @@ void display_update(const DisplayData &d) {
     draw_card(C2_Y, c2_label, c2_ok, c2_val, c2_unit, s_h2, s_hcnt, C_LINE2);
 
     // ── FOOTER ────────────────────────────────────────────────────────────
+    // Igual que la referencia: solo batería + porcentaje (izq) y tiempo (der)
+    // Sin colores de red, sin indicadores GSM/WiFi
     s_gfx->fillRect(0, FTR_Y, LCD_WIDTH, FTR_H, C_HDR);
 
-    // Batería (izquierda)
+    // Batería izquierda
     draw_battery_row(10, FTR_Y + 15, d.battery_pct);
     char buf[32];
     snprintf(buf, sizeof(buf), " %d%%", d.battery_pct);
@@ -449,26 +435,7 @@ void display_update(const DisplayData &d) {
     s_gfx->setCursor(37, FTR_Y + 27);
     s_gfx->print(buf);
 
-    // Estado de red (centro)
-    s_gfx->setCursor(100, FTR_Y + 27);
-    if (d.wifi_connected && !d.wifi_ap_mode) {
-        s_gfx->setTextColor(C_WIFION);
-        s_gfx->print("WiFi");
-        if (d.gsm_connected) {
-            s_gfx->setTextColor(C_DIVID);
-            s_gfx->print(" + ");
-            s_gfx->setTextColor(C_OK);
-            s_gfx->print("GSM");
-        }
-    } else if (d.gsm_connected) {
-        s_gfx->setTextColor(C_OK);
-        s_gfx->print("GSM");
-    } else if (d.wifi_ap_mode) {
-        s_gfx->setTextColor(C_WIFION);
-        s_gfx->print("AP");
-    }
-
-    // Tiempo / sync (derecha)
+    // Uptime / sync derecha — en blanco/gris, sin colores
     uint32_t up = millis() / 1000;
     if (d.last_post_ms > 0) {
         uint32_t ago = (millis() - d.last_post_ms) / 1000;
@@ -485,8 +452,8 @@ void display_update(const DisplayData &d) {
                  (unsigned long)((up % 3600) / 60),
                  (unsigned long)(up % 60));
     }
-    s_gfx->setTextColor(C_LABEL);
-    s_gfx->setCursor(185, FTR_Y + 27);
+    s_gfx->setTextColor(C_UNIT);
+    s_gfx->setCursor(190, FTR_Y + 27);
     s_gfx->print(buf);
 
     s_gfx->setFont(nullptr);
