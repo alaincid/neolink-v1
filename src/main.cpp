@@ -77,12 +77,25 @@ void setup() {
         display_update(boot_disp);   // UI visible antes de que cargue el modem
     }
 
-    // Sensores
+    // Sensores — primera lectura ANTES del modem para mostrar datos reales
+    // en la pantalla mientras el GPRS conecta (AT+CIICR puede tardar 30-60 s)
     if (!sensors_init()) {
         Serial.println("[MAIN] Advertencia: sensor(es) no inicializaron");
     }
+    sensors_read(data);
+    {
+        DisplayData pre_disp = {};
+        pre_disp.temp_sht35   = data.temp_sht35;
+        pre_disp.humidity     = data.humidity;
+        pre_disp.sht35_ok     = data.sht35_ok;
+        pre_disp.temp_pt100   = data.temp_pt100;
+        pre_disp.pt100_ok     = data.pt100_ok;
+        pre_disp.battery_pct  = battery_pct();
+        pre_disp.current_time = time(nullptr);
+        display_update(pre_disp);
+    }
 
-    // SIM800L
+    // SIM800L — puede bloquear varios segundos en AT+CIICR
     if (modem_init()) {
         modem_ready = modem_connect();
         Serial.println(modem_ready
