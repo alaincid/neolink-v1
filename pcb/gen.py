@@ -123,6 +123,27 @@ def sym_2xN(name, n, pin_names):
     out += ['    )', '  )']
     return '\n'.join(out) + '\n'
 
+def sym_pwrflag():
+    return f'''  (symbol "PWR_FLAG"
+    (power)
+    (pin_names (offset 0) hide)
+    (pin_numbers hide)
+    (property "Reference" "#PWR" (at 0 -3.81 0) {EFF_H})
+    (property "Value" "PWR_FLAG" (at 0 -2.54 0) {EFF})
+    (property "Footprint" "" (at 0 0 0) {EFF_H})
+    (symbol "PWR_FLAG_0_0"
+      (pin power_in line (at 0 0 0) (length 0)
+        (name "PWR" {EFF}) (number "1" {EFF}))
+    )
+    (symbol "PWR_FLAG_0_1"
+      (polyline (pts (xy 0 0) (xy 0 1.27))
+        (stroke (width 0) (type default)) (fill (type none)))
+      (polyline (pts (xy -1.016 1.27) (xy 0 2.54) (xy 1.016 1.27) (xy -1.016 1.27))
+        (stroke (width 0) (type default)) (fill (type filled)))
+    )
+  )
+'''
+
 def sym_cap():
     return f'''  (symbol "C_TH"
     (pin_names (offset 0.508))
@@ -179,6 +200,7 @@ LIPO_PINS       = ["BAT", "GND"]
 SMA_PINS        = ["ANT_GSM", "GND"]
 
 LIB_SYMS  = "(lib_symbols\n"
+LIB_SYMS += sym_pwrflag()
 LIB_SYMS += sym_2xN("Conn_02x16",    16, ESP32_PINS)
 LIB_SYMS += sym_2xN("Conn_02x04_M1",  4, MAX31865_1_PINS)
 LIB_SYMS += sym_2xN("Conn_02x04_M2",  4, MAX31865_2_PINS)
@@ -317,6 +339,30 @@ attach_1x(LIPO_PINS, *J9)
 J10= (220, 70);  SYMS += mk_sym("Conn_01x02_SM", "J10", "SMA_Antenna",
     "Connector_Coaxial:SMA_Molex_73251-1153_Vertical", *J10, 2)
 attach_1x(SMA_PINS, *J10)
+
+# ── PWR_FLAG symbols ─────────────────────────────────────────────────────────
+# Placed in a clear area (x≈30, y=10..40) away from all connectors.
+# Each PWR_FLAG pin is at its placement origin; a global label is attached
+# via a 5.08mm wire to the left.
+
+def mk_pwrflag(ref_num, net, ax, ay):
+    """Place a PWR_FLAG at (ax,ay) and attach a net label via short wire."""
+    out  = f'(symbol (lib_id "PWR_FLAG") (at {fv(ax)} {fv(ay)} 0) (unit 1)\n'
+    out += '  (in_bom yes) (on_board yes) (dnp no)\n'
+    out += f'  (uuid "{u()}")\n'
+    out += f'  (property "Reference" "#PWR{ref_num:02d}" (at 0 -3.81 0) {EFF_H})\n'
+    out += f'  (property "Value" "PWR_FLAG" (at 0 -2.54 0) {EFF})\n'
+    out += f'  (property "Footprint" "" (at 0 0 0) {EFF_H})\n'
+    out += f'  (pin "1" (uuid "{u()}"))\n'
+    out += ')\n'
+    glabel(net, ax - 5.08, ay, 0)      # label to the left, extends right
+    wire(ax - 5.08, ay, ax, ay)         # wire label → PWR_FLAG pin
+    return out
+
+SYMS += mk_pwrflag(1, "GND",         30, 10)
+SYMS += mk_pwrflag(2, "~{VCC_3V3}", 30, 20)
+SYMS += mk_pwrflag(3, "~{VCC_5V}",  30, 30)
+SYMS += mk_pwrflag(4, "BAT",         30, 40)
 
 # Capacitor — vertical pins (pin1 + at top, pin2 - at bottom in schematic)
 C1 = (140, 55)
