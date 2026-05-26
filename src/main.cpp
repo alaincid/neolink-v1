@@ -7,6 +7,7 @@
 #include "preferences_store.h"
 #include "wifi_manager.h"
 #include "config_portal.h"
+#include "power_manager.h"
 
 // ─────────────────────────────────────────────
 //  NEOLINK V1 — main.cpp
@@ -25,7 +26,7 @@ static uint8_t      reading_count = 0;
 static bool         modem_ready   = false;
 static uint32_t     last_post_ms  = 0;
 
-static uint8_t battery_pct() { return 100; }
+static uint8_t battery_pct() { return power_batt_pct(); }
 
 // ─────────────────────────────────────────────
 //  Task Core 0: WiFi + web portal
@@ -58,11 +59,14 @@ void setup() {
     Serial.println("-----------------------------");
 
     // Zona horaria: México CDMX UTC-6 (permanente desde 2023)
-    // Se establece antes de cualquier uso de mktime/localtime
     configTime(-6 * 3600, 0, nullptr);
 
     // NVS (necesario antes del WiFi manager)
     prefs_init();
+
+    // AXP2101 PMIC — PRIMERO, antes del display
+    // Enciende los rails de voltaje necesarios para la pantalla
+    power_init();
 
     // Display
     display_init();
