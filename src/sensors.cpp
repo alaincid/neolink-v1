@@ -27,11 +27,14 @@ static Adafruit_MAX31865 max31865(
 bool sensors_init() {
     bool ok = true;
 
-    // SHT35 — I2C en pines personalizados
+    // SHT35 — I2C con timeout para evitar cuelgues si el bus flota
     Wire.begin(SHT35_SDA_PIN, SHT35_SCL_PIN);
+    Wire.setClock(100000);
+    Wire.setTimeOut(100);   // 100 ms max por transacción
 
     if (!sht35.begin(SHT35_I2C_ADDR)) {
-        Serial.println("[SENSORS] ERROR: SHT35 no detectado en I2C");
+        Serial.printf("[SENSORS] ERROR: SHT35 no detectado en 0x%02X\n", SHT35_I2C_ADDR);
+        Serial.println("[SENSORS] Verifica: VCC=3.3V, GND, SDA=GPIO47, SCL=GPIO42");
         ok = false;
     } else {
         Serial.println("[SENSORS] SHT35 OK");
