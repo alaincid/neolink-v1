@@ -5,7 +5,7 @@
       "Application": "Pcbnew",
       "Version": "10.0.3"
     },
-    "CreationDate": "2026-05-26T19:56:35-06:00"
+    "CreationDate": "2026-05-27T05:02:42-06:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
@@ -14,8 +14,8 @@
       "Revision": "rev?"
     },
     "Size": {
-      "X": 80.05,
-      "Y": 50.05
+      "X": 50.05,
+      "Y": 80.05
     },
     "LayerNumber": 2,
     "BoardThickness": 1.6,
@@ -66,6 +66,16 @@
     {
       "Path": "neolink-v1-Edge_Cuts.gm1",
       "FileFunction": "Profile",
+      "FilePolarity": "Positive"
+    },
+    {
+      "Path": "neolink-v1-F_Fab.gbr",
+      "FileFunction": "AssemblyDrawing,Top",
+      "FilePolarity": "Positive"
+    },
+    {
+      "Path": "neolink-v1-B_Fab.gbr",
+      "FileFunction": "AssemblyDrawing,Bot",
       "FilePolarity": "Positive"
     }
   ],

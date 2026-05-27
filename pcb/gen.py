@@ -164,10 +164,10 @@ def sym_cap():
 ESP32_PINS = [
     "GND",           "GND",          # row 0   pins 1,2
     "~{VCC_3V3}",   "~{VCC_5V}",    # row 1   pins 3,4
-    "BAT",           "CS_MAX1",      # row 2   pins 5,6   GPIO38  → CS1
+    "BAT",           "CS_MAX1",      # row 2   pins 5,6   (BAT on left col → leftward escape x≈1.27, frees right col for CS_MAX2/I2C)
     "CLK_SPI",       "CS_MAX2",      # row 3   pins 7,8   GPIO39  → CLK, GPIO46 → CS2
     "MOSI_SPI",      "MISO_SPI",     # row 4   pins 9,10  GPIO40  → MOSI, GPIO41 → MISO
-    "I2C_SCL",       "I2C_SDA",      # row 5   pins 11,12 GPIO42  → SCL,  GPIO47 → SDA
+    "I2C_SDA",       "I2C_SCL",      # row 5   pins 11,12 GPIO42  → SDA,  GPIO47 → SCL  (SDA on left col for leftward escape)
     "TXD_SIM",       "RXD_SIM",      # row 6   pins 13,14 GPIO21←SIM_TXD, GPIO45→SIM_RXD
     "GPIO1",         "GPIO2",        # row 7   pins 15,16 (unconnected)
     "GPIO3",         "GPIO4",        # row 8   pins 17,18
@@ -459,27 +459,36 @@ def net_decls():
 #   y≈18-59           J1 (ESP32 2×16)
 #   y≈67     J9                       J10(SMA)
 #
-BW, BH = 80, 50
+BW, BH = 50, 80   # 50 mm wide × 80 mm tall (long side runs along J1's 16 rows)
 
-# Layout 80×50mm
-# J1 ESP32 2×16 at x=20, rows y=6..44.1 (centered ~y=25)
-# J3/J4 MAX31865 interleaved with J1 rows (ay = J1_ay+1.27) → 1.27mm gap to J1 pads
-# J5/J6 SHT35 right side
-# J7/J8 PT100 left side  (J7 top, J8 middle)
-# J9 LiPo bottom left, J10 SMA bottom right
+# Layout 50×80 mm — portrait orientation
+# J1 ESP32 2×16 at left edge (x=2.54), rows y=21..59.1 (centred vertically)
+# The board extends ONLY to the RIGHT of J1 (x = 5..50 mm)
+#
+# Upper area (y < 21 = above J1):
+#   J5/J6 SHT35 at (18,5) and (27,5) — different x so routes can pass between them
+#   J7/J8 PT100 at (9,5) and (9,14)  — left side of upper area
+#
+# J1 zone (y=21..59.1): J3/J4 MAX31865 just right of J1
+# Middle-right: J2 SIM800L, C1
+# Lower area (y > 59.1): J9 LiPo, J10 SMA
+#
+# Key routing strategy: escape from J1 left column via x=3.81 (between J1 columns,
+# 1.27mm from both — just clear of 0.65+0.25+0.20=1.10mm required clearance).
+# Routes travel upward at x=3.81, then jog above J1 to reach J5/J6/J7/J8.
 
 POS = {
-    'J1':  (20.0,  6.00),  # ESP32 2×16        — left-center, rows y=6..44.1
-    'J2':  (55.0, 13.00),  # SIM800L 1×6       — right of J1
-    'J3':  (12.0,  7.27),  # MAX31865 #1 2×4   — rows y=7.27..14.89  (pads at x=12..14.54)
-    'J4':  (12.0, 27.59),  # MAX31865 #2 2×4   — rows y=27.59..35.21 (pads at x=12..14.54)
-    'J5':  (38.0,  5.00),  # SHT35 #1 1×4 JST  — right of J1, top
-    'J6':  (38.0, 28.00),  # SHT35 #2 1×4 JST  — right of J1, lower
-    'J7':  ( 2.0,  2.00),  # PT100 #1 1×2 JST  — top left corner
-    'J8':  ( 2.0, 22.00),  # PT100 #2 1×2 JST  — left edge middle
-    'J9':  ( 5.0, 44.00),  # LiPo 1×2 JST      — bottom left
-    'J10': (72.0, 44.00),  # SMA coaxial        — bottom right
-    'C1':  (63.0, 17.00),  # Capacitor 1000 µF  — next to J2 (pad2 at x+5=68)
+    'J1':  ( 2.54, 21.00),  # ESP32 2×16        — left edge, rows y=21..59.1
+    'J2':  (30.00, 30.00),  # SIM800L 1×6       — centre-right (y 30..42.7)
+    'J3':  ( 9.00, 27.50),  # MAX31865 #1 2×4   — rows y=27.5..35.12 (pads x=9..11.54)
+    'J4':  (22.00, 38.00),  # MAX31865 #2 2×4   — rows y=38..45.62  (pads x=22..24.54; ≠ J3 x!)
+    'J5':  (18.00,  5.00),  # SHT35 #1 1×4 JST  — top area, x=18   (y 5..12.5)
+    'J6':  (27.00,  5.00),  # SHT35 #2 1×4 JST  — top area, x=27   (y 5..12.5) ← diff x!
+    'J7':  (30.00, 20.00),  # PT100 #1 1×2 JST  — mid-right area  (y 20..22.5) — J3 RTD1
+    'J8':  (18.00, 62.00),  # PT100 #2 1×2 JST  — lower area, x=18 (y 62..64.5) — J4 RTD2
+    'J9':  ( 9.00, 72.00),  # LiPo 1×2 JST      — bottom-left      (y 72..74.5)
+    'J10': (38.00, 70.00),  # SMA coaxial        — bottom-right     (holes to y=73.05, x=41.05)
+    'C1':  (38.00, 36.00),  # Capacitor 1000 µF  — next to J2       (pad2 at x+5=43 < 50)
 }
 
 # ── pad helpers with net assignment ─────────────────────────────────────────
@@ -721,7 +730,7 @@ def _find_route(x1, y1, x2, y2, net_name, w, lyr):
         return [(x1, y1, x1, y2), (x1, y2, x2, y2)]
 
     # C: jog ABOVE
-    for dy in [2.54, 5.08, 7.62, 10.16, 15.0]:
+    for dy in [1.25, 2.54, 5.08, 7.62, 10.16, 15.0]:
         yj = min(y1, y2) - dy
         if yj < 1.0:
             continue
@@ -729,7 +738,7 @@ def _find_route(x1, y1, x2, y2, net_name, w, lyr):
             return [(x1, y1, x1, yj), (x1, yj, x2, yj), (x2, yj, x2, y2)]
 
     # D: jog BELOW
-    for dy in [2.54, 5.08, 7.62, 10.16, 15.0]:
+    for dy in [1.25, 2.54, 5.08, 7.62, 10.16, 15.0]:
         yj = max(y1, y2) + dy
         if yj > BH - 1.0:
             continue
@@ -740,8 +749,11 @@ def _find_route(x1, y1, x2, y2, net_name, w, lyr):
     _xj_cands = set()
     for base in [x1, x2, (x1+x2)/2]:
         for sign in (-1, +1):
-            for dx in (1.27, 2.54, 3.81, 5.08, 7.62, 10.16, 12.7, 15.0, 20.0, 25.0):
+            for dx in (1.25, 1.27, 1.35, 2.54, 3.81, 5.08, 7.62, 10.16, 12.7, 15.0, 20.0, 25.0):
                 _xj_cands.add(round(base + sign * dx, 3))
+    # Always add board-edge corridors (essential for J1 left-col leftward escapes)
+    _xj_cands.add(1.0)
+    _xj_cands.add(round(BW - 1.0, 3))
     for xj in sorted(_xj_cands, key=lambda v: abs(v - x1) + abs(v - x2)):
         if xj < 1.0 or xj > BW - 1.0:
             continue
@@ -749,9 +761,12 @@ def _find_route(x1, y1, x2, y2, net_name, w, lyr):
             return [(x1, y1, xj, y1), (xj, y1, xj, y2), (xj, y2, x2, y2)]
 
     # G: 4-segment S-bend  H→V→H→V
-    _DX = [1.27, 2.54, 3.81, 5.08, 7.62, 10.16, 12.7, 15.0, 20.0, 25.0, 30.0]
-    _DY = [1.27, 2.54, 3.81, 5.08, 7.62, 10.16, 12.7, 15.0, 20.0]
+    _DX = [1.25, 1.27, 1.35, 2.54, 3.81, 5.08, 7.62, 10.16, 12.7, 15.0, 20.0, 25.0, 30.0]
+    _DY = [1.25, 1.27, 1.35, 2.54, 3.81, 5.08, 7.62, 10.16, 12.7, 15.0, 20.0]
     _xj_set, _yj_set = set(), set()
+    # Always include board-edge corridors for J1 left-col leftward escapes
+    _xj_set.add(1.0)
+    _xj_set.add(round(BW - 1.0, 3))
     for _b in [x1, x2, (x1 + x2) / 2]:
         for _s in (-1, +1):
             for _d in _DX:
@@ -883,22 +898,19 @@ def _try_via_route(x1, y1, x2, y2, nid, net_name, w):
 def safe_route(x1, y1, x2, y2, nid, net_name, w, force_layer=None):
     """Route on the best available layer; _no_cross prevents same-layer crossings.
 
-    Layer preference:
+    Layer preference (portrait board, J1 at left edge x≈2.54..5.08):
       • forced via hint              → that layer first, other as fallback
-      • both endpoints right of J1   → B.Cu first
-      • J1 → right side              → B.Cu first
-      • long left-side escape (x<8)  → B.Cu first (F.Cu congested by SPI near J3)
-      • short left-side              → F.Cu first
+      • both endpoints right of J1   → B.Cu first (clear rightward corridor)
+      • J1 pad → right side          → B.Cu first
+      • otherwise                    → F.Cu first
     """
     if force_layer:
         layers = (force_layer, 'B.Cu' if force_layer == 'F.Cu' else 'F.Cu')
-    elif min(x1, x2) > _J1_XMIN:      # both right of J1 left column
+    elif min(x1, x2) > _J1_XMAX:      # both clearly right of J1
         layers = ('B.Cu', 'F.Cu')
-    elif x2 > x1:                      # J1 → right side (or right→right crossing)
+    elif max(x1, x2) > _J1_XMAX:      # one end in J1, other to right → rightward escape
         layers = ('B.Cu', 'F.Cu')
-    elif min(x1, x2) < 8.0:           # long left escape → B.Cu (F.Cu congested by SPI)
-        layers = ('B.Cu', 'F.Cu')
-    else:                              # short left-side
+    else:                              # short / within J1 zone
         layers = ('F.Cu', 'B.Cu')
     for lyr in layers:
         segs = _find_route(x1, y1, x2, y2, net_name, w, lyr)
@@ -937,21 +949,23 @@ def _net_span(pts):
     xs = [p[0] for p in pts]
     return max(xs) - min(xs)
 
-# J1 sits at x=20..22.54.  Pads from J1 act as routing hubs.
-_J1_XMIN, _J1_XMAX = 18.0, 25.0
+# J1 sits at x=2.54..5.08.  Pads from J1 act as routing hubs.
+_J1_XMIN, _J1_XMAX = 1.5, 6.5
 
-_J3_YRANGE = (6.0,  17.0)   # J3 pads span y≈7.27..14.89
-_J4_YRANGE = (26.0, 37.0)   # J4 pads span y≈27.59..35.21
+_J3_YRANGE = (26.5, 36.5)   # J3 pads span y≈27.5..35.12
+_J4_YRANGE = (37.0, 47.0)   # J4 pads span y≈38..45.62 (now at x=22..24.54)
 
 def _route_pairs(pts):
-    """Return (p1, p2, layer_hint) routing pairs forming a spanning tree.
+    """Return (p1, p2, layer_hint) routing pairs as a nearest-neighbour chain.
 
-    Strategy: star from J1 pads.
-      • J1→J3 left-side pads  → force F.Cu  (short, clean corridor)
-      • J1→J4 left-side pads  → force B.Cu  (longer, separate layer avoids J3 congestion)
-      • J1→right-side pads    → B.Cu preferred (rightward B.Cu corridor)
-      • No J1 pads: NN chain, no layer hint
-    Returns list of (p1, p2, layer_hint) where layer_hint is None or 'F.Cu'/'B.Cu'.
+    Strategy: full NN chain across all pads. J1 pads act as preferred start nodes.
+    This avoids duplicate star routes (e.g. J1→J5 AND J1→J6) and lets natural
+    chains like J1→J3→J4→J5→J6 emerge, keeping each segment short.
+
+    Layer hints:
+      • J1→J3 zone (F.Cu) or J1→J4 zone (B.Cu) based on destination y
+      • J1 internal chain → F.Cu
+      • All other segments → None (safe_route decides)
     """
     j1    = [p for p in pts if _J1_XMIN <= p[0] <= _J1_XMAX]
     other = [p for p in pts if p not in j1]
@@ -963,22 +977,35 @@ def _route_pairs(pts):
     pairs = []
     if len(j1) > 1:
         c = nn_chain(j1)
-        # J1 internal chain segments → F.Cu keeps B.Cu clear for right-side escapes
         pairs.extend((a, b, 'F.Cu') for a, b in zip(c, c[1:]))
 
-    for p in other:
-        hub = min(j1, key=lambda h: (h[0]-p[0])**2 + (h[1]-p[1])**2)
-        # Assign layer hint based on destination zone
-        if p[0] < _J1_XMIN:
-            if _J3_YRANGE[0] <= p[1] <= _J3_YRANGE[1]:
-                hint = 'F.Cu'   # J1→J3 on F.Cu
-            elif _J4_YRANGE[0] <= p[1] <= _J4_YRANGE[1]:
-                hint = 'B.Cu'   # J1→J4 on B.Cu
-            else:
-                hint = None     # J1→J9 or other left pads
+    if not other:
+        return pairs
+
+    # Chain non-J1 pads in NN order starting from the one closest to any J1 pad
+    o_chain = nn_chain(other)
+    hub = min(j1, key=lambda h: (h[0]-o_chain[0][0])**2 + (h[1]-o_chain[0][1])**2)
+
+    # Layer hint for J1 → first other pad
+    first = o_chain[0]
+    if _J3_YRANGE[0] <= first[1] <= _J3_YRANGE[1] and first[0] < 15.0:
+        hint0 = 'F.Cu'
+    elif _J4_YRANGE[0] <= first[1] <= _J4_YRANGE[1]:
+        hint0 = 'B.Cu'
+    else:
+        hint0 = None
+    pairs.append((hub, first, hint0))
+
+    # Chain remaining other pads.
+    _UPPER_Y = 15.0   # J5/J6 pads span y=5..12.5; upper zone cutoff
+    for i in range(1, len(o_chain)):
+        a, b = o_chain[i-1], o_chain[i]
+        if a[1] < _UPPER_Y and b[1] < _UPPER_Y:
+            hint = 'F.Cu'   # J5↔J6 upper-zone hops on F.Cu, freeing B.Cu for VCC_3V3 vertical
         else:
-            hint = None         # right-side: let safe_route decide
-        pairs.append((hub, p, hint))
+            hint = None
+        pairs.append((a, b, hint))
+
     return pairs
 
 def route_gnd(x1, y1, x2, y2, nid, w):
@@ -1069,8 +1096,20 @@ def route_all():
     for grp in (left_jobs, right_jobs, cross_jobs):
         grp.sort(key=_sort_key)
 
-    # Route LEFT first (F.Cu clean), then RIGHT (B.Cu clean), then CROSS
-    for name, nid, w, px, py, qx, qy, hint in left_jobs + right_jobs + cross_jobs:
+    # Route LEFT first (F.Cu clean), then RIGHT/CROSS.
+    # I2C_SDA/SCL → EARLY so they claim B.Cu corridors before CS_MAX2 blocks them.
+    # RTD1_N → forced F.Cu to free the B.Cu corridor through the middle.
+    # BAT → leftward escape on B.Cu; last in EARLY so I2C can place vias first.
+    # RTD1_P/RTD2_P/RTD2_N → routed early on B.Cu before congestion builds.
+    _FORCE_FCU  = frozenset(['RTD1_N'])
+    _EARLY_NETS = frozenset(['BAT', 'RTD1_P', 'RTD1_N', 'RTD2_P', 'RTD2_N',
+                             'I2C_SDA', 'I2C_SCL'])
+    combined   = right_jobs + cross_jobs
+    early_jobs = [t for t in combined if t[0] in _EARLY_NETS]
+    rest       = [t for t in combined if t[0] not in _EARLY_NETS]
+    for name, nid, w, px, py, qx, qy, hint in left_jobs + early_jobs + rest:
+        if name in _FORCE_FCU and hint is None:
+            hint = 'F.Cu'
         safe_route(px, py, qx, qy, nid, name, w, force_layer=hint)
 
     # Route GND explicitly on B.Cu so kicad-cli drc sees connectivity
@@ -1147,9 +1186,9 @@ PCB = (
     + net_decls()
     + f'  (gr_rect (start 0 0) (end {BW} {BH})\n'
       f'    (stroke (width 0.05) (type solid)) (layer "Edge.Cuts") (uuid "{u()}"))\n\n'
-    + f'  (gr_text "NEOLINK V1" (at 35 {BH-5}) (layer "F.SilkS")\n'
+    + f'  (gr_text "NEOLINK V1" (at 25 {BH-5}) (layer "F.SilkS")\n'
       f'    (effects (font (size 2 2) (thickness 0.3))) (uuid "{u()}"))\n'
-    + f'  (gr_text "ESP32-S3 Waveshare Shield" (at 33 {BH-2.5}) (layer "F.SilkS")\n'
+    + f'  (gr_text "ESP32-S3 Waveshare Shield" (at 25 {BH-2.5}) (layer "F.SilkS")\n'
       f'    (effects (font (size 1.2 1.2) (thickness 0.18))) (uuid "{u()}"))\n\n'
     + FP_J1 + FP_J2 + FP_J3 + FP_J4 + FP_J5
     + FP_J6 + FP_J7 + FP_J8 + FP_J9 + FP_J10 + FP_C1

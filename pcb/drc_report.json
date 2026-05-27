@@ -1,7 +1,7 @@
 {
     "$schema": "https://schemas.kicad.org/drc.v1.json",
     "coordinate_units": "mm",
-    "date": "2026-05-26T19:56:25",
+    "date": "2026-05-27T05:02:30",
     "ignored_checks": [
         {
             "description": "Footprint has no courtyard defined",
@@ -29,174 +29,385 @@
         "warning"
     ],
     "kicad_version": "10.0.3",
-    "schematic_parity": [],
-    "source": "neolink-v1.kicad_pcb",
-    "unconnected_items": [],
-    "violations": [
+    "schematic_parity": [
         {
-            "description": "The current configuration does not include the footprint library 'Connector_JST'",
-            "items": [
-                {
-                    "description": "Footprint J9",
-                    "pos": {
-                        "x": 5.0,
-                        "y": 44.0
-                    },
-                    "uuid": "198c4f91-cfc7-458d-b5c5-05ade1f0ae6c"
-                }
-            ],
-            "severity": "warning",
-            "type": "lib_footprint_issues"
-        },
-        {
-            "description": "The current configuration does not include the footprint library 'Connector_PinHeader_2.54mm'",
-            "items": [
-                {
-                    "description": "Footprint J2",
-                    "pos": {
-                        "x": 55.0,
-                        "y": 13.0
-                    },
-                    "uuid": "1e31470d-9ee6-4b35-bc76-d61326cd800e"
-                }
-            ],
-            "severity": "warning",
-            "type": "lib_footprint_issues"
-        },
-        {
-            "description": "The current configuration does not include the footprint library 'Connector_JST'",
-            "items": [
-                {
-                    "description": "Footprint J5",
-                    "pos": {
-                        "x": 38.0,
-                        "y": 5.0
-                    },
-                    "uuid": "210fb775-1200-4893-8d59-fda7ce0a6d8e"
-                }
-            ],
-            "severity": "warning",
-            "type": "lib_footprint_issues"
-        },
-        {
-            "description": "The current configuration does not include the footprint library 'Connector_PinHeader_2.54mm'",
-            "items": [
-                {
-                    "description": "Footprint J3",
-                    "pos": {
-                        "x": 12.0,
-                        "y": 7.27
-                    },
-                    "uuid": "3eb9a00d-5207-45ab-8ca6-e62c256be3b1"
-                }
-            ],
-            "severity": "warning",
-            "type": "lib_footprint_issues"
-        },
-        {
-            "description": "The current configuration does not include the footprint library 'Connector_Coaxial'",
-            "items": [
-                {
-                    "description": "Footprint J10",
-                    "pos": {
-                        "x": 72.0,
-                        "y": 44.0
-                    },
-                    "uuid": "8ae600a4-f254-4d74-82f9-89d26ebf89e0"
-                }
-            ],
-            "severity": "warning",
-            "type": "lib_footprint_issues"
-        },
-        {
-            "description": "The current configuration does not include the footprint library 'Capacitor_THT'",
+            "description": "Value (C1) doesn't match symbol value (1000uF_10V)",
             "items": [
                 {
                     "description": "Footprint C1",
                     "pos": {
-                        "x": 63.0,
-                        "y": 17.0
+                        "x": 38.0,
+                        "y": 36.0
                     },
-                    "uuid": "9efd9a02-f97e-4042-9220-0a39c869eef8"
+                    "uuid": "482d9f78-48d8-4eaf-acc1-acb4b79a7df3"
                 }
             ],
             "severity": "warning",
-            "type": "lib_footprint_issues"
+            "type": "footprint_symbol_mismatch"
         },
         {
-            "description": "The current configuration does not include the footprint library 'Connector_JST'",
-            "items": [
-                {
-                    "description": "Footprint J7",
-                    "pos": {
-                        "x": 2.0,
-                        "y": 2.0
-                    },
-                    "uuid": "bd4093b9-3a81-47c4-90aa-2f1bf8031c3b"
-                }
-            ],
-            "severity": "warning",
-            "type": "lib_footprint_issues"
-        },
-        {
-            "description": "The current configuration does not include the footprint library 'Connector_PinHeader_2.54mm'",
+            "description": "Value (J1) doesn't match symbol value (ESP32_2x16)",
             "items": [
                 {
                     "description": "Footprint J1",
                     "pos": {
-                        "x": 20.0,
-                        "y": 6.0
+                        "x": 2.54,
+                        "y": 21.0
                     },
-                    "uuid": "d4c9deb5-458b-42e2-b6ae-3946bfede25e"
+                    "uuid": "4b860645-9763-4730-a4ff-b547b8c37e72"
                 }
             ],
             "severity": "warning",
-            "type": "lib_footprint_issues"
+            "type": "footprint_symbol_mismatch"
         },
         {
-            "description": "The current configuration does not include the footprint library 'Connector_JST'",
+            "description": "Value (J2) doesn't match symbol value (SIM800L_1x6)",
             "items": [
                 {
-                    "description": "Footprint J8",
+                    "description": "Footprint J2",
                     "pos": {
-                        "x": 2.0,
-                        "y": 22.0
+                        "x": 30.0,
+                        "y": 30.0
                     },
-                    "uuid": "da2efd54-32a0-4ad4-97d5-cc26a3b1ab6b"
+                    "uuid": "a9bdb9e7-6088-48ec-8fe4-4d375cac672b"
                 }
             ],
             "severity": "warning",
-            "type": "lib_footprint_issues"
+            "type": "footprint_symbol_mismatch"
         },
         {
-            "description": "The current configuration does not include the footprint library 'Connector_PinHeader_2.54mm'",
+            "description": "Value (J3) doesn't match symbol value (MAX31865_1)",
+            "items": [
+                {
+                    "description": "Footprint J3",
+                    "pos": {
+                        "x": 9.0,
+                        "y": 27.5
+                    },
+                    "uuid": "b8453f6c-a465-4917-a811-0ad9eb5cbb90"
+                }
+            ],
+            "severity": "warning",
+            "type": "footprint_symbol_mismatch"
+        },
+        {
+            "description": "Value (J4) doesn't match symbol value (MAX31865_2)",
             "items": [
                 {
                     "description": "Footprint J4",
                     "pos": {
-                        "x": 12.0,
-                        "y": 27.59
+                        "x": 22.0,
+                        "y": 38.0
                     },
-                    "uuid": "f8fa763f-6685-48cd-8d31-02b496aa2b8b"
+                    "uuid": "e559a6d2-35d7-45cd-bd82-e8682452de69"
+                }
+            ],
+            "severity": "warning",
+            "type": "footprint_symbol_mismatch"
+        },
+        {
+            "description": "Value (J5) doesn't match symbol value (SHT35_1)",
+            "items": [
+                {
+                    "description": "Footprint J5",
+                    "pos": {
+                        "x": 18.0,
+                        "y": 5.0
+                    },
+                    "uuid": "672aad16-e263-4199-ba1f-52108de95761"
+                }
+            ],
+            "severity": "warning",
+            "type": "footprint_symbol_mismatch"
+        },
+        {
+            "description": "Value (J6) doesn't match symbol value (SHT35_2)",
+            "items": [
+                {
+                    "description": "Footprint J6",
+                    "pos": {
+                        "x": 27.0,
+                        "y": 5.0
+                    },
+                    "uuid": "3745a84c-3554-4cb8-9513-9c9e86e2b579"
+                }
+            ],
+            "severity": "warning",
+            "type": "footprint_symbol_mismatch"
+        },
+        {
+            "description": "Value (J7) doesn't match symbol value (PT100_1)",
+            "items": [
+                {
+                    "description": "Footprint J7",
+                    "pos": {
+                        "x": 30.0,
+                        "y": 20.0
+                    },
+                    "uuid": "72043d95-bbc3-4430-81c7-309621d1d94a"
+                }
+            ],
+            "severity": "warning",
+            "type": "footprint_symbol_mismatch"
+        },
+        {
+            "description": "Value (J8) doesn't match symbol value (PT100_2)",
+            "items": [
+                {
+                    "description": "Footprint J8",
+                    "pos": {
+                        "x": 18.0,
+                        "y": 62.0
+                    },
+                    "uuid": "88fb6436-e63a-481c-a6fa-e3a173c6485c"
+                }
+            ],
+            "severity": "warning",
+            "type": "footprint_symbol_mismatch"
+        },
+        {
+            "description": "Value (J9) doesn't match symbol value (LiPo)",
+            "items": [
+                {
+                    "description": "Footprint J9",
+                    "pos": {
+                        "x": 9.0,
+                        "y": 72.0
+                    },
+                    "uuid": "8d73203a-8574-4dee-bdc8-975f8403ddf7"
+                }
+            ],
+            "severity": "warning",
+            "type": "footprint_symbol_mismatch"
+        },
+        {
+            "description": "Value (J10) doesn't match symbol value (ANT_GSM)",
+            "items": [
+                {
+                    "description": "Footprint J10",
+                    "pos": {
+                        "x": 38.0,
+                        "y": 70.0
+                    },
+                    "uuid": "457a7f37-85a5-4555-b332-8090909c7bb6"
+                }
+            ],
+            "severity": "warning",
+            "type": "footprint_symbol_mismatch"
+        },
+        {
+            "description": "No corresponding pin found in schematic",
+            "items": [
+                {
+                    "description": "PTH pad 3 [GND] of J10",
+                    "pos": {
+                        "x": 41.05,
+                        "y": 66.95
+                    },
+                    "uuid": "60c34167-225d-4711-bd20-15e5f380a81b"
+                }
+            ],
+            "severity": "warning",
+            "type": "net_conflict"
+        },
+        {
+            "description": "No corresponding pin found in schematic",
+            "items": [
+                {
+                    "description": "PTH pad 4 [GND] of J10",
+                    "pos": {
+                        "x": 34.95,
+                        "y": 73.05
+                    },
+                    "uuid": "ac7c2794-2d92-43e1-8e8c-62652b1f3893"
+                }
+            ],
+            "severity": "warning",
+            "type": "net_conflict"
+        },
+        {
+            "description": "No corresponding pin found in schematic",
+            "items": [
+                {
+                    "description": "PTH pad 5 [GND] of J10",
+                    "pos": {
+                        "x": 41.05,
+                        "y": 73.05
+                    },
+                    "uuid": "4889e30d-80aa-48d0-a964-a0836c8e6aba"
+                }
+            ],
+            "severity": "warning",
+            "type": "net_conflict"
+        }
+    ],
+    "source": "neolink-v1.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "Footprint 'JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical' does not match copy in library 'Connector_JST'",
+            "items": [
+                {
+                    "description": "Footprint J6",
+                    "pos": {
+                        "x": 27.0,
+                        "y": 5.0
+                    },
+                    "uuid": "3745a84c-3554-4cb8-9513-9c9e86e2b579"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'SMA_Molex_73251-1153_Vertical' not found in library 'Connector_Coaxial'",
+            "items": [
+                {
+                    "description": "Footprint J10",
+                    "pos": {
+                        "x": 38.0,
+                        "y": 70.0
+                    },
+                    "uuid": "457a7f37-85a5-4555-b332-8090909c7bb6"
                 }
             ],
             "severity": "warning",
             "type": "lib_footprint_issues"
         },
         {
-            "description": "The current configuration does not include the footprint library 'Connector_JST'",
+            "description": "Footprint 'CP_Radial_D10.0mm_P5.00mm' does not match copy in library 'Capacitor_THT'",
             "items": [
                 {
-                    "description": "Footprint J6",
+                    "description": "Footprint C1",
                     "pos": {
                         "x": 38.0,
-                        "y": 28.0
+                        "y": 36.0
                     },
-                    "uuid": "fc8dfd2c-a26e-4f5c-a534-a9112be4f035"
+                    "uuid": "482d9f78-48d8-4eaf-acc1-acb4b79a7df3"
                 }
             ],
             "severity": "warning",
-            "type": "lib_footprint_issues"
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'PinHeader_2x16_P2.54mm_Vertical' does not match copy in library 'Connector_PinHeader_2.54mm'",
+            "items": [
+                {
+                    "description": "Footprint J1",
+                    "pos": {
+                        "x": 2.54,
+                        "y": 21.0
+                    },
+                    "uuid": "4b860645-9763-4730-a4ff-b547b8c37e72"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical' does not match copy in library 'Connector_JST'",
+            "items": [
+                {
+                    "description": "Footprint J5",
+                    "pos": {
+                        "x": 18.0,
+                        "y": 5.0
+                    },
+                    "uuid": "672aad16-e263-4199-ba1f-52108de95761"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical' does not match copy in library 'Connector_JST'",
+            "items": [
+                {
+                    "description": "Footprint J7",
+                    "pos": {
+                        "x": 30.0,
+                        "y": 20.0
+                    },
+                    "uuid": "72043d95-bbc3-4430-81c7-309621d1d94a"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical' does not match copy in library 'Connector_JST'",
+            "items": [
+                {
+                    "description": "Footprint J8",
+                    "pos": {
+                        "x": 18.0,
+                        "y": 62.0
+                    },
+                    "uuid": "88fb6436-e63a-481c-a6fa-e3a173c6485c"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'JST_XH_B2B-XH-A_1x02_P2.50mm_Vertical' does not match copy in library 'Connector_JST'",
+            "items": [
+                {
+                    "description": "Footprint J9",
+                    "pos": {
+                        "x": 9.0,
+                        "y": 72.0
+                    },
+                    "uuid": "8d73203a-8574-4dee-bdc8-975f8403ddf7"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'PinHeader_1x06_P2.54mm_Vertical' does not match copy in library 'Connector_PinHeader_2.54mm'",
+            "items": [
+                {
+                    "description": "Footprint J2",
+                    "pos": {
+                        "x": 30.0,
+                        "y": 30.0
+                    },
+                    "uuid": "a9bdb9e7-6088-48ec-8fe4-4d375cac672b"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'PinHeader_2x04_P2.54mm_Vertical' does not match copy in library 'Connector_PinHeader_2.54mm'",
+            "items": [
+                {
+                    "description": "Footprint J3",
+                    "pos": {
+                        "x": 9.0,
+                        "y": 27.5
+                    },
+                    "uuid": "b8453f6c-a465-4917-a811-0ad9eb5cbb90"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
+            "description": "Footprint 'PinHeader_2x04_P2.54mm_Vertical' does not match copy in library 'Connector_PinHeader_2.54mm'",
+            "items": [
+                {
+                    "description": "Footprint J4",
+                    "pos": {
+                        "x": 22.0,
+                        "y": 38.0
+                    },
+                    "uuid": "e559a6d2-35d7-45cd-bd82-e8682452de69"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
         }
     ]
 }
