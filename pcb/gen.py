@@ -512,6 +512,42 @@ def _reg(net, abs_x, abs_y, half=0.9):
     elif net in ('NC', '~'):
         PAD_LIST.append((abs_x, abs_y, '_NC_', half))
 
+# ── silkscreen pin-label helpers ─────────────────────────────────────────────
+
+_NET_LABEL = {
+    '~{VCC_3V3}': '3V3',   '~{VCC_5V}': '5V',
+    'GND': 'GND',           'BAT': 'BAT',
+    'CS_MAX1': 'CS1',       'CS_MAX2': 'CS2',
+    'CLK_SPI': 'CLK',       'MOSI_SPI': 'MOSI',   'MISO_SPI': 'MISO',
+    'I2C_SDA': 'SDA',       'I2C_SCL': 'SCL',
+    'TXD_SIM': 'TXD',       'RXD_SIM': 'RXD',
+    'RST_SIM': 'RST',       'PWR_SIM': 'NET',
+    'RTD1_P': 'RTD+',       'RTD1_N': 'RTD-',
+    'RTD2_P': 'RTD+',       'RTD2_N': 'RTD-',
+    'ANT_GSM': 'ANT',       'NC': 'NC',
+}
+
+def _net_disp(net):
+    """Human-readable label for a net name."""
+    if not net or net in ('~', ''):
+        return ''
+    return _NET_LABEL.get(net, net)
+
+SILK_TEXTS = []   # accumulated gr_text elements at absolute coords
+
+_SIL_SZ = 0.8   # silkscreen text size — matches JLCPCB minimum readable size
+
+def _sil_abs(ax, ay, text, sz=_SIL_SZ):
+    """Append a gr_text silk label at absolute PCB coordinates (left-justified)."""
+    SILK_TEXTS.append(
+        f'  (gr_text "{text}" (at {fv(ax)} {fv(ay)}) (layer "F.SilkS")\n'
+        f'    (effects (font (size {sz} {sz}) (thickness 0.12))) (uuid "{u()}"))\n'
+    )
+
+def _sil(ref_ax, ref_ay, rx, ry, text, sz=_SIL_SZ):
+    """Emit a silk label at footprint-relative (rx,ry) → absolute (ref_ax+rx, ref_ay+ry)."""
+    _sil_abs(ref_ax + rx, ref_ay + ry, text, sz)
+
 def _hdr(ref, val, ax, ay, fp, pad_rows, sil_dx=1.27):
     out  = f'(footprint "{fp}" (layer "F.Cu") (uuid "{u()}")\n'
     out += f'  (at {fv(ax)} {fv(ay)})\n'
@@ -523,7 +559,7 @@ def _hdr(ref, val, ax, ay, fp, pad_rows, sil_dx=1.27):
     out += ')\n'
     return out
 
-def fp_2xN(ref, val, ax, ay, n, pins):
+def fp_2xN(ref, val, ax, ay, n, pins, labels=None):
     fp   = f'Connector_PinHeader_2.54mm:PinHeader_2x{n:02d}_P2.54mm_Vertical'
     rows = []
     for row in range(n):
@@ -536,9 +572,14 @@ def fp_2xN(ref, val, ax, ay, n, pins):
         rows.append(mk_pad_n(p2, 2.54, y, 'circle', 1.3, 0.8, id2, n2))
         _reg(n1, ax,      ay + y, half=0.65)
         _reg(n2, ax+2.54, ay + y, half=0.65)
+        # Silk labels: left-col pin slightly above row centre, right-col below
+        l1 = labels[2*row]   if labels else _net_disp(n1)
+        l2 = labels[2*row+1] if labels else _net_disp(n2)
+        if l1: _sil(ax, ay, 3.8, y - 0.7, l1)
+        if l2: _sil(ax, ay, 3.8, y + 0.7, l2)
     return _hdr(ref, val, ax, ay, fp, rows, 1.27)
 
-def fp_1xN(ref, val, ax, ay, n, pins, pitch=2.54, psz=1.3, dr=0.8):
+def fp_1xN(ref, val, ax, ay, n, pins, pitch=2.54, psz=1.3, dr=0.8, labels=None):
     fp   = f'Connector_PinHeader_2.54mm:PinHeader_1x{n:02d}_P2.54mm_Vertical'
     rows = []
     for i, net in enumerate(pins):
@@ -547,9 +588,11 @@ def fp_1xN(ref, val, ax, ay, n, pins, pitch=2.54, psz=1.3, dr=0.8):
         nid = NETS.get(net, 0)
         rows.append(mk_pad_n(i+1, 0, y, sh, psz, dr, nid, net))
         _reg(net, ax, ay + y, half=psz/2)
+        lbl = labels[i] if labels else _net_disp(net)
+        if lbl: _sil(ax, ay, 1.2, y, lbl)
     return _hdr(ref, val, ax, ay, fp, rows, 0)
 
-def fp_jst(ref, val, ax, ay, n, pins):
+def fp_jst(ref, val, ax, ay, n, pins, labels=None):
     fp   = f'Connector_JST:JST_XH_B{n}B-XH-A_1x{n:02d}_P2.50mm_Vertical'
     rows = []
     for i, net in enumerate(pins):
@@ -558,6 +601,8 @@ def fp_jst(ref, val, ax, ay, n, pins):
         nid = NETS.get(net, 0)
         rows.append(mk_pad_n(i+1, 0, y, sh, 1.6, 0.9, nid, net))
         _reg(net, ax, ay + y, half=0.8)   # JST pads are 1.6 mm → half=0.8
+        lbl = labels[i] if labels else _net_disp(net)
+        if lbl: _sil(ax, ay, 1.3, y, lbl)
     return _hdr(ref, val, ax, ay, fp, rows, 0)
 
 def fp_cap(ref, val, ax, ay):
@@ -587,10 +632,12 @@ def fp_sma(ref, val, ax, ay):
     out += f'  (property "Reference" "{ref}" (at 0 -6 0) (layer "F.SilkS") (effects (font (size 1 1))))\n'
     out += f'  (property "Value" "{val}" (at 0 5 0) (layer "F.Fab") (effects (font (size 1 1))))\n'
     out += mk_pad_n(1, 0, 0, 'circle', 2.0, 1.3, sid, sn)
+    _sil(ax, ay, -0.5, -2.3, 'ANT')
     _reg(sn, ax, ay)
     for i, (gx, gy) in enumerate([(-3.05,-3.05),(3.05,-3.05),(-3.05,3.05),(3.05,3.05)]):
         out += mk_pad_n(i+2, gx, gy, 'circle', 2.0, 1.3, gid, gn)
         _reg(gn, ax+gx, ay+gy)
+    _sil(ax, ay, 4.2, 0, 'GND')
     out += ')\n'
     return out
 
@@ -1125,15 +1172,25 @@ def route_all():
 
 # ── footprint instances ───────────────────────────────────────────────────────
 
+_MAX_LABELS = ["VIN","GND","CLK","SDO","SDI","CS","RTD+","RTD-"]
+
 FP_J1  = fp_2xN("J1",  "ESP32_2x16",  *POS['J1'],  16, ESP32_PINS)
-FP_J2  = fp_1xN("J2",  "SIM800L_1x6", *POS['J2'],   6, SIM800L_PINS)
-FP_J3  = fp_2xN("J3",  "MAX31865_1",  *POS['J3'],   4, MAX31865_1_PINS)
-FP_J4  = fp_2xN("J4",  "MAX31865_2",  *POS['J4'],   4, MAX31865_2_PINS)
-FP_J5  = fp_jst("J5",  "SHT35_1",     *POS['J5'],   4, SHT35_1_PINS)
-FP_J6  = fp_jst("J6",  "SHT35_2",     *POS['J6'],   4, SHT35_2_PINS)
-FP_J7  = fp_jst("J7",  "PT100_1",     *POS['J7'],   2, PT100_1_PINS)
-FP_J8  = fp_jst("J8",  "PT100_2",     *POS['J8'],   2, PT100_2_PINS)
-FP_J9  = fp_jst("J9",  "LiPo",        *POS['J9'],   2, LIPO_PINS)
+FP_J2  = fp_1xN("J2",  "SIM800L_1x6", *POS['J2'],   6, SIM800L_PINS,
+                labels=["VCC","GND","TXD","RXD","RST","NET"])
+FP_J3  = fp_2xN("J3",  "MAX31865_1",  *POS['J3'],   4, MAX31865_1_PINS,
+                labels=_MAX_LABELS)
+FP_J4  = fp_2xN("J4",  "MAX31865_2",  *POS['J4'],   4, MAX31865_2_PINS,
+                labels=_MAX_LABELS)
+FP_J5  = fp_jst("J5",  "SHT35_1",     *POS['J5'],   4, SHT35_1_PINS,
+                labels=["VCC","GND","SDA","SCL"])
+FP_J6  = fp_jst("J6",  "SHT35_2",     *POS['J6'],   4, SHT35_2_PINS,
+                labels=["VCC","GND","SDA","SCL"])
+FP_J7  = fp_jst("J7",  "PT100_1",     *POS['J7'],   2, PT100_1_PINS,
+                labels=["RTD+","RTD-"])
+FP_J8  = fp_jst("J8",  "PT100_2",     *POS['J8'],   2, PT100_2_PINS,
+                labels=["RTD+","RTD-"])
+FP_J9  = fp_jst("J9",  "LiPo",        *POS['J9'],   2, LIPO_PINS,
+                labels=["BAT+","BAT-"])
 FP_J10 = fp_sma("J10", "ANT_GSM",     *POS['J10'])
 FP_C1  = fp_cap("C1",  "1000uF_10V",  *POS['C1'])
 
@@ -1193,6 +1250,7 @@ PCB = (
     + FP_J1 + FP_J2 + FP_J3 + FP_J4 + FP_J5
     + FP_J6 + FP_J7 + FP_J8 + FP_J9 + FP_J10 + FP_C1
     + '\n'
+    + ''.join(SILK_TEXTS)
     + ''.join(SEGS)
     + ''.join(VIAS)
     + '\n'
