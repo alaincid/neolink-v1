@@ -459,20 +459,27 @@ def net_decls():
 #   y≈18-59           J1 (ESP32 2×16)
 #   y≈67     J9                       J10(SMA)
 #
-BW, BH = 110, 80
+BW, BH = 80, 50
+
+# Layout 80×50mm
+# J1 ESP32 2×16 at x=20, rows y=6..44.1 (centered ~y=25)
+# J3/J4 MAX31865 interleaved with J1 rows (ay = J1_ay+1.27) → 1.27mm gap to J1 pads
+# J5/J6 SHT35 right side
+# J7/J8 PT100 left side  (J7 top, J8 middle)
+# J9 LiPo bottom left, J10 SMA bottom right
 
 POS = {
-    'J1':  (50.0, 18.0),   # ESP32 2×16        — center
-    'J2':  (90.0, 14.19),  # SIM800L 1×6 — aligned to J1 row midpoints
-    'J3':  ( 5.0,  5.0),   # MAX31865 #1 2×4   — left top
-    'J4':  ( 5.0, 22.0),   # MAX31865 #2 2×4   — left
-    'J5':  (60.0,  5.0),   # SHT35 #1 1×4 JST  — right of J1, top (avoids y-conflicts with J3/J4)
-    'J6':  (60.0, 22.0),   # SHT35 #2 1×4 JST  — right of J1
-    'J7':  (70.0,  5.0),   # PT100 #1 1×2 JST  — top, beside J5
-    'J8':  (70.0, 14.0),   # PT100 #2 1×2 JST  — beside J6
-    'J9':  ( 5.0, 67.0),   # LiPo 1×2 JST      — bottom left
-    'J10': (97.0, 62.0),   # SMA coaxial        — bottom right
-    'C1':  (79.0, 14.0),   # Capacitor 1000 µF next to SIM800L (pad2 at x+5)
+    'J1':  (20.0,  6.00),  # ESP32 2×16        — left-center, rows y=6..44.1
+    'J2':  (55.0, 13.00),  # SIM800L 1×6       — right of J1
+    'J3':  (12.0,  7.27),  # MAX31865 #1 2×4   — rows y=7.27..14.89  (pads at x=12..14.54)
+    'J4':  (12.0, 27.59),  # MAX31865 #2 2×4   — rows y=27.59..35.21 (pads at x=12..14.54)
+    'J5':  (38.0,  5.00),  # SHT35 #1 1×4 JST  — right of J1, top
+    'J6':  (38.0, 28.00),  # SHT35 #2 1×4 JST  — right of J1, lower
+    'J7':  ( 2.0,  2.00),  # PT100 #1 1×2 JST  — top left corner
+    'J8':  ( 2.0, 22.00),  # PT100 #2 1×2 JST  — left edge middle
+    'J9':  ( 5.0, 44.00),  # LiPo 1×2 JST      — bottom left
+    'J10': (72.0, 44.00),  # SMA coaxial        — bottom right
+    'C1':  (63.0, 17.00),  # Capacitor 1000 µF  — next to J2 (pad2 at x+5=68)
 }
 
 # ── pad helpers with net assignment ─────────────────────────────────────────
@@ -488,10 +495,13 @@ def mk_pad_n(num, x, y, shape='circle', size=1.8, drill=1.0, nid=0, nname=''):
 PAD_LIST = []   # (abs_x, abs_y, net_name, half_size) for collision detection
 
 def _reg(net, abs_x, abs_y, half=0.9):
-    """Register a pad for routing and collision detection."""
+    """Register a pad for routing and collision detection.
+    NC/~ pads are registered in PAD_LIST under '_NC_' so tracks respect clearance."""
     if net and net not in ('NC', '~'):
         NET_PADS.setdefault(net, []).append((abs_x, abs_y))
         PAD_LIST.append((abs_x, abs_y, net, half))
+    elif net in ('NC', '~'):
+        PAD_LIST.append((abs_x, abs_y, '_NC_', half))
 
 def _hdr(ref, val, ax, ay, fp, pad_rows, sil_dx=1.27):
     out  = f'(footprint "{fp}" (layer "F.Cu") (uuid "{u()}")\n'
@@ -586,15 +596,54 @@ def fp_sma(ref, val, ax, ay):
 # L-shaped segment the router checks for foreign-net pad collisions and
 # falls back to: vertical-first, jog-above, jog-below, or a wider bypass.
 #
-SEGS = []
+SEGS     = []
+VIAS     = []   # KiCad via strings
+CROSSTAB = {'F.Cu': [], 'B.Cu': []}   # committed segments per layer (for crossing check)
 
-def seg(x1, y1, x2, y2, nid, w=0.5, lyr='F.Cu'):
+def seg(x1, y1, x2, y2, nid, w=0.5, lyr='F.Cu', net_name=''):
     if abs(x1-x2) + abs(y1-y2) < 0.001:
         return
+    CROSSTAB[lyr].append((x1, y1, x2, y2, net_name))
     SEGS.append(
         f'  (segment (start {fv(x1)} {fv(y1)}) (end {fv(x2)} {fv(y2)})\n'
         f'    (width {w}) (layer "{lyr}") (net {nid}) (uuid "{u()}"))\n'
     )
+
+
+_EPS = 0.005   # endpoint-tolerance for crossing / overlap checks
+
+def _no_cross(x1, y1, x2, y2, lyr, net_name=''):
+    """True if the axis-aligned segment is compatible with all committed segments on lyr.
+    Detects: H×V crossings (including T-junctions at endpoints), and same-axis overlaps.
+    Same-net segments are skipped — they may legitimately share endpoints."""
+    is_h = abs(y1 - y2) < _EPS
+    is_v = abs(x1 - x2) < _EPS
+    if not (is_h or is_v):
+        return True
+    xlo, xhi = min(x1, x2), max(x1, x2)
+    ylo, yhi = min(y1, y2), max(y1, y2)
+    for ex1, ey1, ex2, ey2, en in CROSSTAB[lyr]:
+        if net_name and en and en == net_name:
+            continue                          # same net — legitimate overlap/touch
+        eH = abs(ey1 - ey2) < _EPS
+        eV = abs(ex1 - ex2) < _EPS
+        exlo, exhi = min(ex1, ex2), max(ex1, ex2)
+        eylo, eyhi = min(ey1, ey2), max(ey1, ey2)
+        if is_h and eV:                       # my H  ×  existing V (incl. endpoint T-junctions)
+            xe = ex1
+            if xlo <= xe <= xhi and eylo <= y1 <= eyhi:
+                return False
+        elif is_v and eH:                     # my V  ×  existing H (incl. endpoint T-junctions)
+            ye = ey1
+            if ylo <= ye <= yhi and exlo <= x1 <= exhi:
+                return False
+        elif is_v and eV:                     # same-x V×V overlap
+            if abs(x1 - ex1) < _EPS and ylo < eyhi - _EPS and eylo < yhi - _EPS:
+                return False
+        elif is_h and eH:                     # same-y H×H overlap
+            if abs(y1 - ey1) < _EPS and xlo < exhi - _EPS and exlo < xhi - _EPS:
+                return False
+    return True
 
 _GAP = 0.20   # minimum DRC clearance
 
@@ -622,97 +671,249 @@ def _clear_v(xa, ya, yb, net_name, tw=0.25):
             return False
     return True
 
-def safe_route(x1, y1, x2, y2, nid, net_name, w):
-    """Pad-aware routing with 8 fallback strategies (H, V, jog-above/below/left/right, diagonals)."""
-    tw = w / 2  # actual trace half-width for clearance checks
+def _find_route(x1, y1, x2, y2, net_name, w, lyr):
+    """Try pad-clear + crossing-free route on `lyr`.
+    Returns list of (ax,ay,bx,by) tuples, or None if impossible."""
+    tw = w / 2
+
+    _min_parallel = 2 * tw + _GAP   # min centre-to-centre for parallel tracks
 
     def ch(xa, ya, xb):
-        return _clear_h(xa, ya, xb, net_name, tw)
+        if not (_clear_h(xa, ya, xb, net_name, tw) and
+                _no_cross(xa, ya, xb, ya, lyr, net_name)):
+            return False
+        # Parallel H-to-H spacing: reject if any committed H on lyr is
+        # within _min_parallel (vertically) and overlaps this segment's x range.
+        xlo_, xhi_ = min(xa, xb), max(xa, xb)
+        for ex1, ey1, ex2, ey2, en in CROSSTAB[lyr]:
+            if en == net_name:
+                continue
+            if abs(ey1 - ey2) < _EPS:   # existing H at y=ey1
+                if abs(ya - ey1) < _min_parallel:
+                    exlo_, exhi_ = min(ex1, ex2), max(ex1, ex2)
+                    if xlo_ < exhi_ and exlo_ < xhi_:
+                        return False
+        return True
 
     def cv(xa, ya, yb):
-        return _clear_v(xa, ya, yb, net_name, tw)
+        if not (_clear_v(xa, ya, yb, net_name, tw) and
+                _no_cross(xa, ya, xa, yb, lyr, net_name)):
+            return False
+        # Parallel V-to-V spacing: reject if any committed V on lyr is
+        # within _min_parallel (laterally) and overlaps this segment's y range.
+        ylo_, yhi_ = min(ya, yb), max(ya, yb)
+        for ex1, ey1, ex2, ey2, en in CROSSTAB[lyr]:
+            if en == net_name:
+                continue
+            if abs(ex1 - ex2) < _EPS:   # existing V at x=ex1
+                if abs(xa - ex1) < _min_parallel:
+                    eylo_, eyhi_ = min(ey1, ey2), max(ey1, ey2)
+                    if ylo_ < eyhi_ and eylo_ < yhi_:
+                        return False
+        return True
 
-    def emit4(ax, ay, bx, by, cx, cy, dx, dy):
-        seg(ax, ay, bx, by, nid, w)
-        seg(bx, by, cx, cy, nid, w)
-        seg(cx, cy, dx, dy, nid, w)
-
-    # A: H then V  (L-shape)
+    # A: H → V
     if ch(x1, y1, x2) and cv(x2, y1, y2):
-        seg(x1, y1, x2, y1, nid, w)
-        seg(x2, y1, x2, y2, nid, w)
-        return
+        return [(x1, y1, x2, y1), (x2, y1, x2, y2)]
 
-    # B: V then H  (L-shape)
+    # B: V → H
     if cv(x1, y1, y2) and ch(x1, y2, x2):
-        seg(x1, y1, x1, y2, nid, w)
-        seg(x1, y2, x2, y2, nid, w)
-        return
+        return [(x1, y1, x1, y2), (x1, y2, x2, y2)]
 
-    # C: jog ABOVE (3-seg via yj < min(y1,y2))
+    # C: jog ABOVE
     for dy in [2.54, 5.08, 7.62, 10.16, 15.0]:
         yj = min(y1, y2) - dy
         if yj < 1.0:
             continue
         if cv(x1, y1, yj) and ch(x1, yj, x2) and cv(x2, yj, y2):
-            emit4(x1, y1, x1, yj, x2, yj, x2, y2)
-            return
+            return [(x1, y1, x1, yj), (x1, yj, x2, yj), (x2, yj, x2, y2)]
 
-    # D: jog BELOW (3-seg via yj > max(y1,y2))
+    # D: jog BELOW
     for dy in [2.54, 5.08, 7.62, 10.16, 15.0]:
         yj = max(y1, y2) + dy
         if yj > BH - 1.0:
             continue
         if cv(x1, y1, yj) and ch(x1, yj, x2) and cv(x2, yj, y2):
-            emit4(x1, y1, x1, yj, x2, yj, x2, y2)
-            return
+            return [(x1, y1, x1, yj), (x1, yj, x2, yj), (x2, yj, x2, y2)]
 
-    # E+F: horizontal jog — escape to xj, then vertical, then horizontal.
+    # E+F: horizontal escape to xj
     _xj_cands = set()
-    for base in [x1, x2]:
+    for base in [x1, x2, (x1+x2)/2]:
         for sign in (-1, +1):
-            for dx in (2.54, 5.08, 7.62, 10.16, 15.0, 20.0, 25.0):
+            for dx in (1.27, 2.54, 3.81, 5.08, 7.62, 10.16, 12.7, 15.0, 20.0, 25.0):
                 _xj_cands.add(round(base + sign * dx, 3))
     for xj in sorted(_xj_cands, key=lambda v: abs(v - x1) + abs(v - x2)):
         if xj < 1.0 or xj > BW - 1.0:
             continue
         if ch(x1, y1, xj) and cv(xj, y1, y2) and ch(xj, y2, x2):
-            emit4(x1, y1, xj, y1, xj, y2, x2, y2)
-            return
+            return [(x1, y1, xj, y1), (xj, y1, xj, y2), (xj, y2, x2, y2)]
 
-    # G: comprehensive 4-segment S-bend search.
-    # Pattern: H(x1→xj), V(y1→yj), H(xj→x2), V(yj→y2).
+    # G: 4-segment S-bend  H→V→H→V
     _DX = [1.27, 2.54, 3.81, 5.08, 7.62, 10.16, 12.7, 15.0, 20.0, 25.0, 30.0]
     _DY = [1.27, 2.54, 3.81, 5.08, 7.62, 10.16, 12.7, 15.0, 20.0]
-    _xj_set = set()
+    _xj_set, _yj_set = set(), set()
     for _b in [x1, x2, (x1 + x2) / 2]:
         for _s in (-1, +1):
             for _d in _DX:
                 _v = round(_b + _s * _d, 3)
                 if 1.0 <= _v <= BW - 1.0:
                     _xj_set.add(_v)
-    _yj_set = set()
     for _b in [y1, y2, (y1 + y2) / 2]:
         for _s in (-1, +1):
             for _d in _DY:
                 _v = round(_b + _s * _d, 3)
                 if 1.0 <= _v <= BH - 1.0:
                     _yj_set.add(_v)
-    _xj_sorted = sorted(_xj_set, key=lambda v: abs(v - x1) + abs(v - x2))
-    _yj_sorted = sorted(_yj_set, key=lambda v: abs(v - y1) + abs(v - y2))
-    for _xj in _xj_sorted:
-        for _yj in _yj_sorted:
+    # Sort xj: prefer values ≤ x1 first (escape left avoids J1-column congestion),
+    # then use wire-length key to break further ties.
+    def _xj_key(v): return (abs(v - x1) + abs(v - x2), 1 if v > x1 else 0)
+    for _xj in sorted(_xj_set, key=_xj_key):
+        for _yj in sorted(_yj_set, key=lambda v: abs(v - y1) + abs(v - y2)):
             if (ch(x1, y1, _xj) and cv(_xj, y1, _yj) and
                     ch(_xj, _yj, x2) and cv(x2, _yj, y2)):
-                seg(x1, y1, _xj, y1, nid, w)
-                seg(_xj, y1, _xj, _yj, nid, w)
-                seg(_xj, _yj, x2, _yj, nid, w)
-                seg(x2, _yj, x2, y2, nid, w)
-                return
+                return [(x1, y1, _xj, y1), (_xj, y1, _xj, _yj),
+                        (_xj, _yj, x2, _yj), (x2, _yj, x2, y2)]
 
-    # H: last resort — plain H-first L (may leave minor DRC warning)
-    seg(x1, y1, x2, y1, nid, w)
-    seg(x2, y1, x2, y2, nid, w)
+    # G2: V→H→V→H  (escape vertically first — needed when horizontal escape
+    #     from x1,y1 is blocked by adjacent connector pads on the same row)
+    def _yj_key(v): return (abs(v - y1) + abs(v - y2), 1 if v > y1 else 0)
+    for _yj in sorted(_yj_set, key=_yj_key):
+        for _xj in sorted(_xj_set, key=_xj_key):
+            if (cv(x1, y1, _yj) and ch(x1, _yj, _xj) and
+                    cv(_xj, _yj, y2) and ch(_xj, y2, x2)):
+                return [(x1, y1, x1, _yj), (x1, _yj, _xj, _yj),
+                        (_xj, _yj, _xj, y2), (_xj, y2, x2, y2)]
+
+    return None   # no valid route found on this layer
+
+
+_FAR_LEFT = 10.0   # not actively used by safe_route (kept for reference)
+
+_VIA_DRILL = 0.4   # via drill radius (0.8mm hole)
+_VIA_SIZE  = 0.9   # via annular ring outer radius → pad size 1.8mm
+
+def _via_clear(xv, yv, net_name):
+    """True if a via at (xv,yv) clears all foreign-net pads AND routed tracks."""
+    min_d = _VIA_SIZE + _GAP        # pad clearance: via annular ring edge + gap
+    track_d = _VIA_SIZE + 0.25 + _GAP   # track clearance: via edge + half track + gap
+    # Pad check
+    for px, py, pn, ph in PAD_LIST:
+        if pn == net_name:
+            continue
+        dist = math.sqrt((px - xv) ** 2 + (py - yv) ** 2)
+        if dist < ph + min_d:
+            return False
+    # Existing routed track check (both layers)
+    for lyr in ('F.Cu', 'B.Cu'):
+        for ex1, ey1, ex2, ey2, en in CROSSTAB[lyr]:
+            if en == net_name:
+                continue
+            eH = abs(ey1 - ey2) < _EPS
+            eV = abs(ex1 - ex2) < _EPS
+            if eH:
+                cx = max(min(ex1, ex2), min(xv, max(ex1, ex2)))
+                dist = math.sqrt((xv - cx) ** 2 + (yv - ey1) ** 2)
+            elif eV:
+                cy = max(min(ey1, ey2), min(yv, max(ey1, ey2)))
+                dist = math.sqrt((xv - ex1) ** 2 + (yv - cy) ** 2)
+            else:
+                continue
+            if dist < track_d:
+                return False
+    return True
+
+def _commit_via(xv, yv, nid, net_name=''):
+    """Write a via to VIAS, register tiny sentinel in CROSSTAB, and register in PAD_LIST
+    so future routes respect the via's DRC clearance zone."""
+    drill_d = fv(_VIA_DRILL * 2)
+    size_d  = fv(_VIA_SIZE  * 2)
+    VIAS.append(
+        f'  (via (at {fv(xv)} {fv(yv)}) (size {size_d}) (drill {drill_d})'
+        f' (layers "F.Cu" "B.Cu") (net {nid}) (uuid "{u()}"))\n'
+    )
+    eps = 0.001
+    for lyr in ('F.Cu', 'B.Cu'):
+        CROSSTAB[lyr].append((xv - eps, yv, xv + eps, yv, net_name))
+    # Register via as a pseudo-pad so _clear_h/_clear_v enforce DRC clearance
+    PAD_LIST.append((xv, yv, net_name, _VIA_SIZE))
+
+def _try_via_route(x1, y1, x2, y2, nid, net_name, w):
+    """Route through a single via when direct single-layer routing fails.
+    Searches the full board at 2.54mm grid for a clear via landing point."""
+    cands = set()
+    # Full-board 2.54mm grid (cast wide net for congested boards)
+    xi = 2.54
+    while xi <= BW - 2.0:
+        yi = 2.54
+        while yi <= BH - 2.0:
+            cands.add((round(xi, 3), round(yi, 3)))
+            yi += 2.54
+        xi += 2.54
+    # Axis-aligned intermediates relative to this route
+    for alpha in (0.25, 0.5, 0.75):
+        cands.add((round(x1 + alpha * (x2 - x1), 3), round(y1, 3)))
+        cands.add((round(x1, 3),                      round(y1 + alpha * (y2 - y1), 3)))
+        cands.add((round(x2, 3),                      round(y1 + alpha * (y2 - y1), 3)))
+        cands.add((round(x1 + alpha * (x2 - x1), 3), round(y2, 3)))
+
+    valid = [(x, y) for x, y in cands
+             if 1.0 <= x <= BW - 1.0 and 1.0 <= y <= BH - 1.0
+             and _via_clear(x, y, net_name)]
+
+    # Prefer via candidates near the route midpoint to minimise wire length
+    mx, my = (x1 + x2) / 2, (y1 + y2) / 2
+    valid.sort(key=lambda p: (p[0] - mx) ** 2 + (p[1] - my) ** 2)
+
+    for xv, yv in valid:
+        for l1, l2 in (('F.Cu', 'B.Cu'), ('B.Cu', 'F.Cu')):
+            s1 = _find_route(x1, y1, xv, yv, net_name, w, l1)
+            if s1 is None:
+                continue
+            s2 = _find_route(xv, yv, x2, y2, net_name, w, l2)
+            if s2 is None:
+                continue
+            for ax, ay, bx, by in s1:
+                seg(ax, ay, bx, by, nid, w, l1, net_name)
+            _commit_via(xv, yv, nid, net_name)
+            for ax, ay, bx, by in s2:
+                seg(ax, ay, bx, by, nid, w, l2, net_name)
+            return True
+    return False
+
+def safe_route(x1, y1, x2, y2, nid, net_name, w, force_layer=None):
+    """Route on the best available layer; _no_cross prevents same-layer crossings.
+
+    Layer preference:
+      • forced via hint              → that layer first, other as fallback
+      • both endpoints right of J1   → B.Cu first
+      • J1 → right side              → B.Cu first
+      • long left-side escape (x<8)  → B.Cu first (F.Cu congested by SPI near J3)
+      • short left-side              → F.Cu first
+    """
+    if force_layer:
+        layers = (force_layer, 'B.Cu' if force_layer == 'F.Cu' else 'F.Cu')
+    elif min(x1, x2) > _J1_XMIN:      # both right of J1 left column
+        layers = ('B.Cu', 'F.Cu')
+    elif x2 > x1:                      # J1 → right side (or right→right crossing)
+        layers = ('B.Cu', 'F.Cu')
+    elif min(x1, x2) < 8.0:           # long left escape → B.Cu (F.Cu congested by SPI)
+        layers = ('B.Cu', 'F.Cu')
+    else:                              # short left-side
+        layers = ('F.Cu', 'B.Cu')
+    for lyr in layers:
+        segs = _find_route(x1, y1, x2, y2, net_name, w, lyr)
+        if segs is not None:
+            for ax, ay, bx, by in segs:
+                seg(ax, ay, bx, by, nid, w, lyr, net_name)
+            return
+    # Via fallback — insert one PTH via to switch layers
+    if _try_via_route(x1, y1, x2, y2, nid, net_name, w):
+        return
+    # Last resort — unchecked H→V (should be rare; causes DRC crossing)
+    print(f"  FALLBACK {net_name}: ({x1:.2f},{y1:.2f})→({x2:.2f},{y2:.2f}) layers={layers}")
+    lyr = layers[0]
+    seg(x1, y1, x2, y1, nid, w, lyr, net_name)
+    seg(x2, y1, x2, y2, nid, w, lyr, net_name)
 
 def nn_chain(pts):
     """Nearest-neighbour ordering of pad positions for one net."""
@@ -729,22 +930,159 @@ def nn_chain(pts):
 
 POWER_W  = 1.0
 SIGNAL_W = 0.5
-_PWR_NETS = frozenset({'~{VCC_3V3}', '~{VCC_5V}', 'BAT'})
+_PWR_NETS = frozenset()  # All nets use 0.5mm signal traces; 2.54mm pitch pads require ≤1.10mm clearance
+
+def _net_span(pts):
+    """Horizontal span of a net's pads — used to sort routing order."""
+    xs = [p[0] for p in pts]
+    return max(xs) - min(xs)
+
+# J1 sits at x=20..22.54.  Pads from J1 act as routing hubs.
+_J1_XMIN, _J1_XMAX = 18.0, 25.0
+
+_J3_YRANGE = (6.0,  17.0)   # J3 pads span y≈7.27..14.89
+_J4_YRANGE = (26.0, 37.0)   # J4 pads span y≈27.59..35.21
+
+def _route_pairs(pts):
+    """Return (p1, p2, layer_hint) routing pairs forming a spanning tree.
+
+    Strategy: star from J1 pads.
+      • J1→J3 left-side pads  → force F.Cu  (short, clean corridor)
+      • J1→J4 left-side pads  → force B.Cu  (longer, separate layer avoids J3 congestion)
+      • J1→right-side pads    → B.Cu preferred (rightward B.Cu corridor)
+      • No J1 pads: NN chain, no layer hint
+    Returns list of (p1, p2, layer_hint) where layer_hint is None or 'F.Cu'/'B.Cu'.
+    """
+    j1    = [p for p in pts if _J1_XMIN <= p[0] <= _J1_XMAX]
+    other = [p for p in pts if p not in j1]
+
+    if not j1:
+        chain = nn_chain(list(pts))
+        return [(a, b, None) for a, b in zip(chain, chain[1:])]
+
+    pairs = []
+    if len(j1) > 1:
+        c = nn_chain(j1)
+        # J1 internal chain segments → F.Cu keeps B.Cu clear for right-side escapes
+        pairs.extend((a, b, 'F.Cu') for a, b in zip(c, c[1:]))
+
+    for p in other:
+        hub = min(j1, key=lambda h: (h[0]-p[0])**2 + (h[1]-p[1])**2)
+        # Assign layer hint based on destination zone
+        if p[0] < _J1_XMIN:
+            if _J3_YRANGE[0] <= p[1] <= _J3_YRANGE[1]:
+                hint = 'F.Cu'   # J1→J3 on F.Cu
+            elif _J4_YRANGE[0] <= p[1] <= _J4_YRANGE[1]:
+                hint = 'B.Cu'   # J1→J4 on B.Cu
+            else:
+                hint = None     # J1→J9 or other left pads
+        else:
+            hint = None         # right-side: let safe_route decide
+        pairs.append((hub, p, hint))
+    return pairs
+
+def route_gnd(x1, y1, x2, y2, nid, w):
+    """Route GND on B.Cu, respecting pad clearance, track crossings, and parallel spacing."""
+    tw = w / 2
+    _min_p = 2 * tw + _GAP
+    def ch(xa, ya, xb):
+        if not (_clear_h(xa, ya, xb, 'GND', tw) and
+                _no_cross(xa, ya, xb, ya, 'B.Cu', 'GND')):
+            return False
+        xlo_, xhi_ = min(xa, xb), max(xa, xb)
+        for ex1, ey1, ex2, ey2, en in CROSSTAB['B.Cu']:
+            if en == 'GND': continue
+            if abs(ey1 - ey2) < _EPS and abs(ya - ey1) < _min_p:
+                exlo_, exhi_ = min(ex1, ex2), max(ex1, ex2)
+                if xlo_ < exhi_ and exlo_ < xhi_: return False
+        return True
+    def cv(xa, ya, yb):
+        if not (_clear_v(xa, ya, yb, 'GND', tw) and
+                _no_cross(xa, ya, xa, yb, 'B.Cu', 'GND')):
+            return False
+        ylo_, yhi_ = min(ya, yb), max(ya, yb)
+        for ex1, ey1, ex2, ey2, en in CROSSTAB['B.Cu']:
+            if en == 'GND': continue
+            if abs(ex1 - ex2) < _EPS and abs(xa - ex1) < _min_p:
+                eylo_, eyhi_ = min(ey1, ey2), max(ey1, ey2)
+                if ylo_ < eyhi_ and eylo_ < yhi_: return False
+        return True
+    if abs(x1 - x2) < _EPS and abs(y1 - y2) < _EPS:
+        return
+    # Simple options: H-V, V-H
+    if ch(x1, y1, x2) and cv(x2, y1, y2):
+        seg(x1, y1, x2, y1, nid, w, 'B.Cu', 'GND')
+        seg(x2, y1, x2, y2, nid, w, 'B.Cu', 'GND'); return
+    if cv(x1, y1, y2) and ch(x1, y2, x2):
+        seg(x1, y1, x1, y2, nid, w, 'B.Cu', 'GND')
+        seg(x1, y2, x2, y2, nid, w, 'B.Cu', 'GND'); return
+    # Jog above / below
+    for dy in [2.54, 5.08, 10.0, 15.0, 20.0, 30.0, 40.0]:
+        yj = min(y1, y2) - dy
+        if yj >= 1.0 and cv(x1, y1, yj) and ch(x1, yj, x2) and cv(x2, yj, y2):
+            seg(x1, y1, x1, yj, nid, w, 'B.Cu', 'GND')
+            seg(x1, yj, x2, yj, nid, w, 'B.Cu', 'GND')
+            seg(x2, yj, x2, y2, nid, w, 'B.Cu', 'GND'); return
+        yj = max(y1, y2) + dy
+        if yj <= BH - 1.0 and cv(x1, y1, yj) and ch(x1, yj, x2) and cv(x2, yj, y2):
+            seg(x1, y1, x1, yj, nid, w, 'B.Cu', 'GND')
+            seg(x1, yj, x2, yj, nid, w, 'B.Cu', 'GND')
+            seg(x2, yj, x2, y2, nid, w, 'B.Cu', 'GND'); return
+    # GND zone fill covers connectivity — skip unchecked fallback to avoid crossings
+    pass
 
 def route_all():
-    for net_name, pts in NET_PADS.items():
-        if net_name == 'GND':
-            continue   # GND via B.Cu pour
-        if len(pts) < 2:
-            continue
-        nid = NETS.get(net_name, 0)
-        if not nid:
-            continue
-        w     = POWER_W if net_name in _PWR_NETS else SIGNAL_W
-        chain = nn_chain(pts)
-        for i in range(len(chain) - 1):
-            safe_route(chain[i][0], chain[i][1],
-                       chain[i+1][0], chain[i+1][1], nid, net_name, w)
+    """Two-pass routing: left-side signals on F.Cu first, right-side on B.Cu second.
+    This strict layer separation prevents cross-contamination between layers."""
+    signal_nets = [
+        (name, pts) for name, pts in NET_PADS.items()
+        if name != 'GND' and len(pts) >= 2 and NETS.get(name, 0)
+    ]
+
+    def _pairs_for_net(name, pts):
+        nid = NETS[name]
+        w   = POWER_W if name in _PWR_NETS else SIGNAL_W
+        return [(nid, w, p, q, hint) for p, q, hint in _route_pairs(pts)]
+
+    # Classify each (p→q) pair as LEFT (F.Cu), RIGHT (B.Cu), or CROSS
+    # Each job carries an optional force_layer hint from _route_pairs.
+    left_jobs  = []   # both endpoints on left of J1
+    right_jobs = []   # both endpoints on right of J1
+    cross_jobs = []   # span crosses J1 column
+
+    for name, pts in signal_nets:
+        for nid, w, (px,py), (qx,qy), hint in _pairs_for_net(name, pts):
+            xmax = max(px, qx)
+            xmin = min(px, qx)
+            if xmax < _J1_XMAX:
+                left_jobs.append((name, nid, w, px, py, qx, qy, hint))
+            elif xmin > _J1_XMIN:
+                right_jobs.append((name, nid, w, px, py, qx, qy, hint))
+            else:
+                cross_jobs.append((name, nid, w, px, py, qx, qy, hint))
+
+    # Sort within each group: SHORT routes first (claim tight corridors),
+    # LONG routes last (find paths around).  Tie-break by net name for stability.
+    def _sort_key(t):
+        # Round span to 3 dp to avoid float-ordering noise between equal-span routes
+        return (round(abs(t[4]-t[6])+abs(t[3]-t[5]), 3), t[0])
+    for grp in (left_jobs, right_jobs, cross_jobs):
+        grp.sort(key=_sort_key)
+
+    # Route LEFT first (F.Cu clean), then RIGHT (B.Cu clean), then CROSS
+    for name, nid, w, px, py, qx, qy, hint in left_jobs + right_jobs + cross_jobs:
+        safe_route(px, py, qx, qy, nid, name, w, force_layer=hint)
+
+    # Route GND explicitly on B.Cu so kicad-cli drc sees connectivity
+    # (zone fill later provides the full copper coverage)
+    gnd_id = NETS.get('GND', 0)
+    if gnd_id:
+        gnd_pts = NET_PADS.get('GND', set())
+        if len(gnd_pts) >= 2:
+            chain = nn_chain(gnd_pts)
+            for i in range(len(chain) - 1):
+                route_gnd(chain[i][0], chain[i][1],
+                          chain[i+1][0], chain[i+1][1], gnd_id, SIGNAL_W)
 
 # ── footprint instances ───────────────────────────────────────────────────────
 
@@ -767,10 +1105,10 @@ route_all()   # fills SEGS from NET_PADS
 GND_ZONE = (
     f'  (zone (net 1) (net_name "GND") (layer "B.Cu") (uuid "{u()}")\n'
     f'    (hatch edge 0.508)\n'
-    f'    (connect_pads (clearance 0.2))\n'
+    f'    (connect_pads yes (clearance 0.3))\n'
     f'    (min_thickness 0.25)\n'
     f'    (filled_areas_thickness no)\n'
-    f'    (fill yes (thermal_gap 0.5) (thermal_bridge_width 0.25))\n'
+    f'    (fill yes (thermal_gap 0.5) (thermal_bridge_width 0.4))\n'
     f'    (polygon\n'
     f'      (pts\n'
     f'        (xy 0 0) (xy {BW} 0) (xy {BW} {BH}) (xy 0 {BH})\n'
@@ -809,14 +1147,15 @@ PCB = (
     + net_decls()
     + f'  (gr_rect (start 0 0) (end {BW} {BH})\n'
       f'    (stroke (width 0.05) (type solid)) (layer "Edge.Cuts") (uuid "{u()}"))\n\n'
-    + f'  (gr_text "NEOLINK V1" (at 5 {BH-6}) (layer "F.SilkS")\n'
+    + f'  (gr_text "NEOLINK V1" (at 35 {BH-5}) (layer "F.SilkS")\n'
       f'    (effects (font (size 2 2) (thickness 0.3))) (uuid "{u()}"))\n'
-    + f'  (gr_text "ESP32-S3 Waveshare Shield" (at 5 {BH-3}) (layer "F.SilkS")\n'
+    + f'  (gr_text "ESP32-S3 Waveshare Shield" (at 33 {BH-2.5}) (layer "F.SilkS")\n'
       f'    (effects (font (size 1.2 1.2) (thickness 0.18))) (uuid "{u()}"))\n\n'
     + FP_J1 + FP_J2 + FP_J3 + FP_J4 + FP_J5
     + FP_J6 + FP_J7 + FP_J8 + FP_J9 + FP_J10 + FP_C1
     + '\n'
     + ''.join(SEGS)
+    + ''.join(VIAS)
     + '\n'
     + GND_ZONE
     + ')\n'
@@ -824,7 +1163,40 @@ PCB = (
 
 with open("neolink-v1.kicad_pcb", "w") as fh:
     fh.write(PCB)
-print("✓ neolink-v1.kicad_pcb (nets, F.Cu routing, B.Cu GND pour)")
+print("✓ neolink-v1.kicad_pcb written (F.Cu + B.Cu routing, B.Cu GND pour)")
+
+# ── Fill GND zone using KiCad's own Python so kicad-cli drc sees copper ─────
+import subprocess, tempfile, os
+
+_KICAD_PY = (
+    "/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework"
+    "/Versions/3.9/bin/python3"
+)
+_FILL_SCRIPT = """\
+import sys, os
+sys.path.insert(0,
+    '/Applications/KiCad/KiCad.app/Contents/Frameworks/Python.framework'
+    '/Versions/3.9/lib/python3.9/site-packages')
+import pcbnew
+pcb = pcbnew.LoadBoard(sys.argv[1])
+filler = pcbnew.ZONE_FILLER(pcb)
+filler.Fill(pcb.Zones())
+pcb.Save(sys.argv[1])
+print('zones filled OK')
+"""
+
+if os.path.exists(_KICAD_PY):
+    _pcb_abs = os.path.abspath("neolink-v1.kicad_pcb")
+    _res = subprocess.run(
+        [_KICAD_PY, '-c', _FILL_SCRIPT, _pcb_abs],
+        capture_output=True, text=True
+    )
+    if _res.returncode == 0:
+        print("✓ GND zone filled via pcbnew")
+    else:
+        print("⚠ zone fill failed:", _res.stderr[:300])
+else:
+    print("⚠ KiCad Python not found — GND zone unfilled (fill manually in KiCad)")
 
 print("\nAll KiCad 7 files generated.")
 print("Open neolink-v1.kicad_pro in KiCad 7+ to review schematic and PCB.")

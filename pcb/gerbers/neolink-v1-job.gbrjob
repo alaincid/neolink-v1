@@ -5,7 +5,7 @@
       "Application": "Pcbnew",
       "Version": "10.0.3"
     },
-    "CreationDate": "2026-05-26T15:00:49-06:00"
+    "CreationDate": "2026-05-26T19:56:35-06:00"
   },
   "GeneralSpecs": {
     "ProjectId": {
@@ -14,8 +14,8 @@
       "Revision": "rev?"
     },
     "Size": {
-      "X": 110.05,
-      "Y": 80.05
+      "X": 80.05,
+      "Y": 50.05
     },
     "LayerNumber": 2,
     "BoardThickness": 1.6,
@@ -28,8 +28,8 @@
       "PadToTrack": 0.2,
       "TrackToTrack": 0.2,
       "MinLineWidth": 0.5,
-      "TrackToRegion": 0.2,
-      "RegionToRegion": 0.2
+      "TrackToRegion": 0.3,
+      "RegionToRegion": 0.3
     }
   ],
   "FilesAttributes": [
@@ -46,6 +46,11 @@
     {
       "Path": "neolink-v1-F_Silkscreen.gto",
       "FileFunction": "Legend,Top",
+      "FilePolarity": "Positive"
+    },
+    {
+      "Path": "neolink-v1-B_Silkscreen.gbo",
+      "FileFunction": "Legend,Bot",
       "FilePolarity": "Positive"
     },
     {
