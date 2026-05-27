@@ -161,23 +161,45 @@ def sym_cap():
 
 # ── pin name lists ────────────────────────────────────────────────────────────
 
+# ESP32-S3 Waveshare Touch LCD 3.5 — exact firmware-verified pinout
+# Left column = odd pins (1,3,5…31), right column = even pins (2,4,6…32)
 ESP32_PINS = [
-    "GND",           "GND",          # row 0   pins 1,2
-    "~{VCC_3V3}",   "~{VCC_5V}",    # row 1   pins 3,4
-    "BAT",           "CS_MAX1",      # row 2   pins 5,6   (BAT on left col → leftward escape x≈1.27, frees right col for CS_MAX2/I2C)
-    "CLK_SPI",       "CS_MAX2",      # row 3   pins 7,8   GPIO39  → CLK, GPIO46 → CS2
-    "MOSI_SPI",      "MISO_SPI",     # row 4   pins 9,10  GPIO40  → MOSI, GPIO41 → MISO
-    "I2C_SDA",       "I2C_SCL",      # row 5   pins 11,12 GPIO42  → SDA,  GPIO47 → SCL  (SDA on left col for leftward escape)
-    "TXD_SIM",       "RXD_SIM",      # row 6   pins 13,14 GPIO21←SIM_TXD, GPIO45→SIM_RXD
-    "GPIO1",         "GPIO2",        # row 7   pins 15,16 (unconnected)
-    "GPIO3",         "GPIO4",        # row 8   pins 17,18
-    "GPIO5",         "GPIO6",        # row 9   pins 19,20
-    "GPIO7",         "GPIO8",        # row 10  pins 21,22
-    "GPIO9",         "GPIO10",       # row 11  pins 23,24
-    "GPIO11",        "GPIO12",       # row 12  pins 25,26
-    "GPIO13",        "GPIO14",       # row 13  pins 27,28
-    "GPIO15",        "GPIO16",       # row 14  pins 29,30
-    "GPIO17",        "NC",           # row 15  pins 31,32
+    "BAT",           "~{VCC_5V}",    # row 0   pins 1,2   BAT / 5V
+    "GND",           "GND",          # row 1   pins 3,4   GND / GND
+    "TXD_SIM",       "NC",           # row 2   pins 5,6   GPIO21→SIM_RX / NC
+    "CS_MAX1",       "NC",           # row 3   pins 7,8   GPIO38→CS1    / NC
+    "CLK_SPI",       "NC",           # row 4   pins 9,10  GPIO39→CLK    / NC
+    "MOSI_SPI",      "NC",           # row 5   pins 11,12 GPIO40→MOSI   / NC
+    "MISO_SPI",      "NC",           # row 6   pins 13,14 GPIO41→MISO   / NC
+    "I2C_SCL",       "NC",           # row 7   pins 15,16 GPIO42→SCL    / NC
+    "RXD_SIM",       "NC",           # row 8   pins 17,18 GPIO45→SIM_TX / NC
+    "CS_MAX2",       "NC",           # row 9   pins 19,20 GPIO46→CS2    / NC
+    "I2C_SDA",       "NC",           # row 10  pins 21,22 GPIO47→SDA    / NC
+    "NC",            "NC",           # row 11  pins 23,24 GPIO48 / PWR
+    "NC",            "NC",           # row 12  pins 25,26 RXD44  / SCL7
+    "NC",            "NC",           # row 13  pins 27,28 TXD43  / SDA8
+    "GND",           "GND",          # row 14  pins 29,30 GND    / GND
+    "~{VCC_3V3}",    "~{VCC_3V3}",   # row 15  pins 31,32 3V3    / 3V3
+]
+
+# Official GPIO labels for J1 silkscreen (matches Waveshare pinout diagram)
+J1_SILK_LABELS = [
+    "BAT",           "5V",           # row 0
+    "GND",           "GND",          # row 1
+    "GPIO21",        "DN(IO19)",     # row 2  GPIO21=SIM_RX
+    "GPIO38",        "DP(IO20)",     # row 3  GPIO38=CS1
+    "GPIO39",        "GPIO11",       # row 4  GPIO39=CLK
+    "GPIO40",        "GPIO10",       # row 5  GPIO40=MOSI
+    "GPIO41",        "GPIO9",        # row 6  GPIO41=MISO
+    "GPIO42",        "GPIO17",       # row 7  GPIO42=SCL
+    "GPIO45",        "GPIO18",       # row 8  GPIO45=SIM_TX
+    "GPIO46",        "BOOT",         # row 9  GPIO46=CS2
+    "GPIO47",        "RST",          # row 10 GPIO47=SDA
+    "GPIO48",        "PWR",          # row 11
+    "RXD(IO44)",     "SCL(IO7)",     # row 12
+    "TXD(IO43)",     "SDA(IO8)",     # row 13
+    "GND",           "GND",          # row 14
+    "3V3",           "3V3",          # row 15
 ]
 
 SIM800L_PINS    = ["~{VCC_5V}", "GND", "TXD_SIM", "RXD_SIM", "RST_SIM", "PWR_SIM"]
@@ -437,11 +459,7 @@ NETS = {
     "RTD1_P":    16, "RTD1_N":    17,
     "RTD2_P":    18, "RTD2_N":    19,
     "ANT_GSM":   20,
-    # Unconnected GPIO pads keep named nets (no routing needed)
-    "GPIO1":21, "GPIO2":22, "GPIO3":23, "GPIO4":24, "GPIO5":25,
-    "GPIO6":26, "GPIO7":27, "GPIO8":28, "GPIO9":29, "GPIO10":30,
-    "GPIO11":31,"GPIO12":32,"GPIO13":33,"GPIO14":34,"GPIO15":35,
-    "GPIO16":36,"GPIO17":37,
+    # NC pads use net 0 (no net) — not listed here
 }
 
 def net_decls():
@@ -536,12 +554,13 @@ def _net_disp(net):
 SILK_TEXTS = []   # accumulated gr_text elements at absolute coords
 
 _SIL_SZ = 0.8   # silkscreen text size — matches JLCPCB minimum readable size
+_SIL_TH = 0.15  # silkscreen stroke thickness — JLCPCB minimum
 
 def _sil_abs(ax, ay, text, sz=_SIL_SZ):
     """Append a gr_text silk label at absolute PCB coordinates (left-justified)."""
     SILK_TEXTS.append(
         f'  (gr_text "{text}" (at {fv(ax)} {fv(ay)}) (layer "F.SilkS")\n'
-        f'    (effects (font (size {sz} {sz}) (thickness 0.12))) (uuid "{u()}"))\n'
+        f'    (effects (font (size {sz} {sz}) (thickness {_SIL_TH}))) (uuid "{u()}"))\n'
     )
 
 def _sil(ref_ax, ref_ay, rx, ry, text, sz=_SIL_SZ):
@@ -1143,11 +1162,47 @@ def route_all():
     for grp in (left_jobs, right_jobs, cross_jobs):
         grp.sort(key=_sort_key)
 
-    # Route LEFT first (F.Cu clean), then RIGHT/CROSS.
-    # I2C_SDA/SCL → EARLY so they claim B.Cu corridors before CS_MAX2 blocks them.
-    # RTD1_N → forced F.Cu to free the B.Cu corridor through the middle.
-    # BAT → leftward escape on B.Cu; last in EARLY so I2C can place vias first.
-    # RTD1_P/RTD2_P/RTD2_N → routed early on B.Cu before congestion builds.
+    # ── Manual pre-routes ────────────────────────────────────────────────────────
+    # These nets have congested paths the search algorithm cannot resolve.
+    # Committing them first lets all subsequent algorithmic routes plan around them.
+    _MANUALLY_ROUTED = set()
+
+    def _mroute(net_name, segs_lyr):
+        """Emit explicit segments without clearance-checking."""
+        nid = NETS.get(net_name, 0)
+        w   = POWER_W if net_name in _PWR_NETS else SIGNAL_W
+        for (ax, ay, bx, by), lyr in segs_lyr:
+            seg(ax, ay, bx, by, nid, w, lyr, net_name)
+        _MANUALLY_ROUTED.add(net_name)
+
+    # MOSI_SPI  J1(2.54,33.70) → J3(9,32.58) → J4(22,43.08)  B.Cu
+    # J1→J3: V down 1.12mm from J1 MOSI pad, then H right at y=32.58 split at jog x=6.46.
+    # J3→J4: continues V down in corridor at x=6.46 then H to J4.
+    # Key clearances: J1 NC@(5.08,33.70) 1.12mm ✓; J3 RTD1_P@(9,35.12) 2.54mm ✓;
+    #   x=6.46 is 1.38mm right of J1 right-col (x=5.08), avoids x=10.16 used by CS_MAX1 via.
+    _mroute('MOSI_SPI', [
+        ((2.54, 33.70,  2.54, 32.58), 'B.Cu'),  # V: J1 MOSI down to H-rail
+        ((2.54, 32.58,  6.46, 32.58), 'B.Cu'),  # H: J1 → jog (clears J1 NC@y=33.70 by 1.12mm)
+        ((6.46, 32.58,  9.00, 32.58), 'B.Cu'),  # H: jog → J3 MOSI (T-junction at x=6.46)
+        ((6.46, 32.58,  6.46, 43.08), 'B.Cu'),  # V: jog down to J4 level (1.38mm from J1 right-col)
+        ((6.46, 43.08, 22.00, 43.08), 'B.Cu'),  # H: reach J4 MOSI
+    ])
+
+    # TXD_SIM  J1(2.54, 26.08) → J2(30, 35.08)  B.Cu
+    # Exits left past board edge to avoid NC pad at (5.08, 26.08),
+    # jogs up to y=24.81 (midpoint between J1 rows 23.54 and 26.08, clear of J3),
+    # crosses right to x=21 (clear of J3 x<12 and J4 x>22),
+    # descends to J2 TXD y=35.08 and arrives horizontally (skips J3 RTD1_P at x=9).
+    _mroute('TXD_SIM', [
+        ((2.54, 26.08,  1.00, 26.08), 'B.Cu'),   # H exit left (avoids NC @ x=5.08)
+        ((1.00, 26.08,  1.00, 24.81), 'B.Cu'),   # V up to board-edge corridor
+        ((1.00, 24.81, 21.00, 24.81), 'B.Cu'),   # H above J3 row-0 (y=27.5)
+        ((21.00, 24.81, 21.00, 35.08), 'B.Cu'),  # V down (J3 @ x≤12, J4 @ x≥22)
+        ((21.00, 35.08, 30.00, 35.08), 'B.Cu'),  # H to J2 TXD (J3 RTD1_P @ x=9 excluded)
+    ])
+
+    # ── Algorithmic routing ──────────────────────────────────────────────────────
+    # Original fast config: RTD1_N forced F.Cu keeps B.Cu corridor clear for SPI.
     _FORCE_FCU  = frozenset(['RTD1_N'])
     _EARLY_NETS = frozenset(['BAT', 'RTD1_P', 'RTD1_N', 'RTD2_P', 'RTD2_N',
                              'I2C_SDA', 'I2C_SCL'])
@@ -1155,6 +1210,8 @@ def route_all():
     early_jobs = [t for t in combined if t[0] in _EARLY_NETS]
     rest       = [t for t in combined if t[0] not in _EARLY_NETS]
     for name, nid, w, px, py, qx, qy, hint in left_jobs + early_jobs + rest:
+        if name in _MANUALLY_ROUTED:
+            continue
         if name in _FORCE_FCU and hint is None:
             hint = 'F.Cu'
         safe_route(px, py, qx, qy, nid, name, w, force_layer=hint)
@@ -1174,7 +1231,8 @@ def route_all():
 
 _MAX_LABELS = ["VIN","GND","CLK","SDO","SDI","CS","RTD+","RTD-"]
 
-FP_J1  = fp_2xN("J1",  "ESP32_2x16",  *POS['J1'],  16, ESP32_PINS)
+FP_J1  = fp_2xN("J1",  "ESP32_2x16",  *POS['J1'],  16, ESP32_PINS,
+                labels=J1_SILK_LABELS)
 FP_J2  = fp_1xN("J2",  "SIM800L_1x6", *POS['J2'],   6, SIM800L_PINS,
                 labels=["VCC","GND","TXD","RXD","RST","NET"])
 FP_J3  = fp_2xN("J3",  "MAX31865_1",  *POS['J3'],   4, MAX31865_1_PINS,
@@ -1261,6 +1319,19 @@ PCB = (
 with open("neolink-v1.kicad_pcb", "w") as fh:
     fh.write(PCB)
 print("✓ neolink-v1.kicad_pcb written (F.Cu + B.Cu routing, B.Cu GND pour)")
+
+# ── Fix silkscreen DFM warnings BEFORE zone-fill (compact format is easiest) ─
+import importlib.util as _ilu, os as _os
+_fix_path  = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "fix_silk.py")
+_pcb_local = _os.path.abspath("neolink-v1.kicad_pcb")
+if _os.path.exists(_fix_path):
+    import sys as _sys
+    _saved_argv = _sys.argv[:]
+    _sys.argv = [_fix_path, _pcb_local]
+    _spec = _ilu.spec_from_file_location("fix_silk", _fix_path)
+    _mod  = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    _sys.argv = _saved_argv
 
 # ── Fill GND zone using KiCad's own Python so kicad-cli drc sees copper ─────
 import subprocess, tempfile, os
